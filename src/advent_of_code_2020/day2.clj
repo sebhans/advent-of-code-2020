@@ -2,25 +2,39 @@
   (:gen-class))
 
 (defn- parse-password-list [s]
+  "Parses a password ist of the form 'N-M C: PASSWORD' and returns a sequence of
+vectors with the four components N, M, C, and PASSWORD.
+
+The first three components describe the password policy."
   (->> s
        (re-seq #"(\d+)-(\d+)\s+(\S):\s+(\S+)")
        (map (partial drop 1))
        (map (fn [[n m c password]]
               [(Integer. n) (Integer. m) (first c) password]))))
 
-(defn- count-valid-passwords [s predicate]
-  (->> s
+(defn- count-valid-passwords [password-list-string predicate]
+  "Returns the number of passwords in the password list string which are valid
+according to predicate."
+  (->> password-list-string
        parse-password-list
        (filter predicate)
        count))
 
 (defn solve-1 [s]
+  "Counts the number of passwords which are valid according to the following policy:
+The password policy indicates the lowest and highest number of times a given letter must appear for the password to be valid."
   (count-valid-passwords s (fn [[min-times max-times c password]]
                              (let [actual-times (count (filter #(= c %) password))]
                                (and (<= min-times actual-times)
                                     (>= max-times actual-times))))))
 
 (defn solve-2 [s]
+  "Counts the number of passwords which are valid according to the following
+policy: Each policy actually describes two positions in the password, where 1
+means the first character, 2 means the second character, and so on. (Be careful;
+Toboggan Corporate Policies have no concept of 'index zero'!) Exactly one of
+these positions must contain the given letter. Other occurrences of the letter
+are irrelevant for the purposes of policy enforcement."
   (count-valid-passwords s (fn [[pos1 pos2 c password]]
                              (let [have1 (= c (nth password (dec pos1)))
                                    have2 (= c (nth password (dec pos2)))]
