@@ -1,21 +1,27 @@
 (ns advent-of-code-2020.day1
   (:gen-class))
 
+(defn- summands-to [sum report]
+  "Returns a list of the two numbers in report which add up to sum.
+Relies on there being only one such pair."
+  (let [inverse (set (map #(- sum %) report))]
+    (filter inverse report)))
+
 (defn solve-1 [report]
-  (let [inverse (set (map #(- 2020 %) report))
-        summands (filter inverse report)]
-    (apply * summands)))
+  "Finds two entries in report that sum up to 2020 and multiplies those two
+  numbers together."
+  (apply * (summands-to 2020 report)))
 
 (defn solve-2 [report]
-  (let [to-2020 (map #(vector % (- 2020 %)) report)]
-    (->> to-2020
-         (map (fn [[n twtw-minus-n]]
-                (let [inverse (set (map #(- twtw-minus-n %) report))
-                      summands (filter inverse report)]
-                  (cons n summands))))
-         (filter #(= (count %) 3))
-         first
-         (apply *))))
+  "Finds three entries in report that sum up to 2020 and multiplies them
+  together."
+  (->> report
+       (map #(vector % (- 2020 %)))
+       (map (fn [[n twentytwenty-minus-n]]
+              (cons n (summands-to twentytwenty-minus-n report))))
+       (filter #(= (count %) 3))
+       first
+       (apply *)))
 
 (def trial-input [1721
                   979
