@@ -34,24 +34,59 @@
 
    If the program terminates (i.e. the instruction pointer points outside the
    addressable range), the resulting machine state is returned.
+   It will include the key :terminated?.
 
    If an infinite loop is detected (i.e., the program jumps to an instruction it
    has seen before), the machine state resulting from the last instruction
-   before looping is returned."
+   before looping is returned.
+   It will not include the key :terminated?."
   (loop [state {:ip 0 :acc 0}
-         seen (vec (repeat (count program) false))]
+         seen? (vec (repeat (count program) false))]
     (let [ip (:ip state)]
-      (if (or (> ip (count program))
-              (< ip 0)
-              (seen ip))
-        state
-        (recur (step program state) (assoc seen ip true))))))
+      (cond (or (>= ip (count program))
+                (< ip 0))              (assoc state :terminated? true)
+            (seen? ip)                  state
+            :else                      (recur (step program state)
+                                              (assoc seen? ip true))))))
 
 (defn solve-1 [s]
   "Returns the value the accumulator has before any instruction is executed a
   second time."
   (->> s
        parse-program
+       execute-safely
+       :acc))
+
+(defn- flip-operation [program n]
+  "If the nth operation in program is :nop, change it to :jmp.
+   If the nth operation in program is :jmp, change it to :nop.
+   If the nth operation in program is anything else, leave it unchanged."
+  (let [[operation argument] (nth program n)]
+    (assoc program n (case operation
+                       :nop [:jmp argument]
+                       :jmp [:nop argument]
+                       [operation argument]))))
+
+(defn- terminates? [program]
+  "Determines whether the program terminates (by executing it safely."
+  (:terminated? (execute-safely program)))
+
+(defn- fix-program [program]
+  "Fixes the program so that it terminates normally by changing exactly one
+   jump (to nop) or nop (to jmp)."
+  (->> program
+       count
+       range
+       (map (partial flip-operation program))
+       (filter terminates?)
+       first))
+
+(defn solve-2 [s]
+  "Fixes the program and returns the value of the accumulator after the fixed
+   program terminates."
+  (->> s
+       parse-program
+       fix-program
        execute-safely
        :acc))
 
