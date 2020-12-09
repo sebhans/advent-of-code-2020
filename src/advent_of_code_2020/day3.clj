@@ -1,27 +1,31 @@
 (ns advent-of-code-2020.day3)
 
-(defn- repeating [xs]
+(defn- repeating
   "Turns a finite sequence into an infinite sequence by repeating it."
+  [xs]
   (flatten (repeatedly #(identity xs))))
 
-(defn- parse-tree-map [s]
+(defn- parse-tree-map
   "Parses a map of trees as specified by the puzzle and returns a sequence of
 rows, each of which is represented by a sequence of characters, which repeats
 the input row to the right indefinitely."
+  [s]
   (->> s
        (re-seq #"\S+")
        (map seq)
        (map repeating)))
 
-(defn- tree-at? [tree-map [column row]]
+(defn- tree-at?
   "Checks whether there is a tree in the map at the given column and row."
+  [tree-map [column row]]
   (if (>= row (count tree-map))
     false
     (= (nth (nth tree-map row) column) \#)))
 
-(defn- count-trees [tree-map [right down]]
+(defn- count-trees
   "Counts the trees encountered when starting at the top-left corner of the map
 and following a slope of [right down] to the bottom of the map."
+  [tree-map [right down]]
   (let [num-rows (count tree-map)]
     (->> (map #(vector %1 %2)
               (range 0 (* num-rows right) right)
@@ -29,12 +33,13 @@ and following a slope of [right down] to the bottom of the map."
          (filter (partial tree-at? tree-map))
          count)))
 
-(defn solve-1 [s]
+(defn solve-1
   "Counts the trees encountered when starting at the top-left corner of the map
 and following a slope of right 3 and down 1 to the bottom of the map."
+  [s]
   (count-trees (parse-tree-map s) [3 1]))
 
-(defn solve-2 [s]
+(defn solve-2
   "Determines the number of trees you would encounter if, for each of the
 following slopes, you start at the top-left corner of the map and traverse the
 it all the way to the bottom:
@@ -43,6 +48,7 @@ it all the way to the bottom:
 - Right 5, down 1.
 - Right 7, down 1.
 - Right 1, down 2."
+  [s]
   (let [tree-map (parse-tree-map s)]
     (->> [[1 1]
           [3 1]

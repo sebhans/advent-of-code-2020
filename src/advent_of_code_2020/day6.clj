@@ -2,39 +2,45 @@
   (:require [clojure.string :as s]
             [clojure.set :refer [union intersection]]))
 
-(defn parse-answer [s]
+(defn- parse-answer
   "Parses the answers of a single person into a set of characters."
+  [s]
   (set (seq s)))
 
-(defn parse-answer-group [s]
+(defn- parse-answer-group
   "Parses the answers of a single group into a sequence of the answer sets
    of the individuals in the group."
+  [s]
   (map parse-answer (s/split-lines s)))
 
-(defn parse-answer-groups [s]
+(defn- parse-answer-groups
   "Parses s into a sequence of answer sets, each of which represents
    the accumulated answers of a single group."
+  [s]
   (map parse-answer-group (s/split s #"\n\n")))
 
-(defn sum-of [grouping-function s]
+(defn- sum-of
   "Sums up the number of 'yes' answers per group determined by grouping-function
    over all groups in s."
+  [grouping-function s]
   (->> s
        parse-answer-groups
        (map grouping-function)
        (map count)
        (apply +)))
 
-(defn anyones-yes-answers [group]
+(defn- anyones-yes-answers
   "Returns the set of answers for which anyone in the group has answered 'yes'."
+  [group]
   (apply union group))
 
 (def solve-1
   "Sums up the number of cumulative 'yes' answers of all groups in s."
   (partial sum-of anyones-yes-answers))
 
-(defn unanimous-yes-answers [group]
+(defn- unanimous-yes-answers
   "Returns the set of answers for which everyone in the group has answered 'yes'."
+  [group]
   (apply intersection group))
 
 (def solve-2

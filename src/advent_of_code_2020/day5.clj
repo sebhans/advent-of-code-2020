@@ -1,9 +1,10 @@
 (ns advent-of-code-2020.day5
   (:require [clojure.string :as s]))
 
-(defn parse-boarding-pass [s]
+(defn- parse-boarding-pass
   "Reads a single boarding pass and converts it into its seat ID by treating it
-  as a binary number."
+   as a binary number."
+  [s]
   (-> s
       (s/replace \F \0)
       (s/replace \B \1)
@@ -11,28 +12,32 @@
       (s/replace \R \1)
       (Long/parseLong 2)))
 
-(defn parse-boarding-passes [s]
+(defn- parse-boarding-passes
   "Parses whitespace-separated boarding passes from s and returns a sequence of
-  seat IDs."
+   seat IDs."
+  [s]
   (->> s
        (re-seq #"\S+")
        (map parse-boarding-pass)))
 
-(defn solve-1 [s]
+(defn solve-1
   "Returns the highest seat ID of all boarding passes in s."
+  [s]
   (apply max (parse-boarding-passes s)))
 
-(defn find-gap [xs]
+(defn- find-gap
   "Finds the missing number in the given list of numbers.
-  Relies on there not being any duplicates."
+   Relies on there not being any duplicates."
+  [xs]
   (->> xs
        sort
        (reduce #(if (> %2 (inc %1)) %1 %2))
        inc))
 
-(defn solve-2 [s]
+(defn solve-2
   "Returns the seat ID n which is missing from s, but for which n-1 and n+1 are
-  contained in s."
+   contained in s."
+  [s]
   (->> s
        parse-boarding-passes
        find-gap))

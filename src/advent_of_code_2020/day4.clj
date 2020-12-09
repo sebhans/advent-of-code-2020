@@ -1,39 +1,45 @@
 (ns advent-of-code-2020.day4
   (:require [clojure.set :refer [difference]]))
 
-(defn- parse-field [s]
+(defn- parse-field
   "Parses a single field into a key-value pair (a two-element vector)."
+  [s]
   (vec (drop 1 (re-matches #"([^:]+):(\S+)" s))))
 
-(defn- parse-passport [s]
+(defn- parse-passport
   "Parses a single passport into a map of its fields."
+  [s]
   (->> s
        (re-seq #"\S+")
        (map parse-field)
        (into {})))
 
-(defn- parse-passports [s]
+(defn- parse-passports
   "Parses passports in the format specified by the puzzle."
+  [s]
   (->> s
        (re-seq #"(?:\S+(?:\s|$))+(?:\s|$)")
        (map parse-passport)))
 
-(defn- has-required-fields? [passport]
+(defn- has-required-fields?
   "Returns truthy if the given passport contains all required fields.
-According to the 'improved' policy, these are:
-byr, iyr, eyr, hgt, hcl, ecl, pid."
+   According to the 'improved' policy, these are:
+   byr, iyr, eyr, hgt, hcl, ecl, pid."
+  [passport]
   (let [required-keys #{"byr", "iyr" "eyr", "hgt", "hcl", "ecl", "pid"}]
     (empty? (difference required-keys (set (keys passport))))))
 
-(defn solve-1 [s]
+(defn solve-1
   "Counts the passports valid according to the 'improved' policy."
+  [s]
   (->> s
        parse-passports
        (filter has-required-fields?)
        count))
 
-(defn- in-range [s min max]
+(defn- in-range
   "Returns truthy if s represents an integer between min and max (inclusive)."
+  [s min max]
   (try
     (let [n (Integer. s)]
       (and (>= n min) (<= n max)))
@@ -52,22 +58,25 @@ byr, iyr, eyr, hgt, hcl, ecl, pid."
    "ecl" #{"amb" "blu" "brn" "gry" "grn" "hzl" "oth"}
    "pid" #(re-matches #"\d{9}" %)})
 
-(defn- field-valid? [[key value]]
+(defn- field-valid?
   "Returns truthy if the field given by key and value is valid according to the
-  revised puzzle policy."
+   revised puzzle policy."
+  [[key value]]
   (if-let [validate (field-validators key)]
     (validate value)
     true))
 
-(defn- all-fields-valid? [passport]
+(defn- all-fields-valid?
   "Returns truthy if all fields of the given passport are valid according to the
-  revised puzzle policy."
+   revised puzzle policy."
+  [passport]
   (->> passport
        seq
        (every? field-valid?)))
 
-(defn solve-2 [s]
+(defn solve-2
   "Counts the passports valid according to the revised 'improved' policy."
+  [s]
   (->> s
        parse-passports
        (filter has-required-fields?)

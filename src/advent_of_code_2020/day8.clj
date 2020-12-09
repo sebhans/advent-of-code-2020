@@ -1,14 +1,16 @@
 (ns advent-of-code-2020.day8
   (:require [clojure.string :as s]))
 
-(defn- parse-instruction [s]
+(defn- parse-instruction
   "Parses a single instruction into a pair [operation argument]."
+  [s]
   (let [[_ operation argument] (re-matches #"(\w+)\s+([+-]\d+)" s)]
     [(keyword operation) (Integer. argument)]))
 
-(defn- parse-program [s]
+(defn- parse-program
   "Parses a program as specified by the puzzle.
    Returns a vector of instructions."
+  [s]
   (->> s
        s/split-lines
        (map parse-instruction)
@@ -23,13 +25,14 @@
    :jmp (fn [state arg] (update state :ip #(+ % arg)))
    :nop (fn [state arg] (update state :ip inc))})
 
-(defn- step [program state]
+(defn- step
   "Executes one instruction of the program given the initial state and returns
    the new state."
+  [program state]
   (let [instruction (get program (:ip state))]
     ((operations (first instruction)) state (second instruction))))
 
-(defn- execute-safely [program]
+(defn- execute-safely
   "Executes the program while watching for an infinite loop.
 
    If the program terminates (i.e. the instruction pointer points outside the
@@ -40,6 +43,7 @@
    has seen before), the machine state resulting from the last instruction
    before looping is returned.
    It will not include the key :terminated?."
+  [program]
   (loop [state {:ip 0 :acc 0}
          seen? (vec (repeat (count program) false))]
     (let [ip (:ip state)]
@@ -49,31 +53,35 @@
             :else                      (recur (step program state)
                                               (assoc seen? ip true))))))
 
-(defn solve-1 [s]
+(defn solve-1
   "Returns the value the accumulator has before any instruction is executed a
-  second time."
+   second time."
+  [s]
   (->> s
        parse-program
        execute-safely
        :acc))
 
-(defn- flip-operation [program n]
+(defn- flip-operation
   "If the nth operation in program is :nop, change it to :jmp.
    If the nth operation in program is :jmp, change it to :nop.
    If the nth operation in program is anything else, leave it unchanged."
+  [program n]
   (let [[operation argument] (nth program n)]
     (assoc program n (case operation
                        :nop [:jmp argument]
                        :jmp [:nop argument]
                        [operation argument]))))
 
-(defn- terminates? [program]
+(defn- terminates?
   "Determines whether the program terminates (by executing it safely."
+  [program]
   (:terminated? (execute-safely program)))
 
-(defn- fix-program [program]
+(defn- fix-program
   "Fixes the program so that it terminates normally by changing exactly one
    jump (to nop) or nop (to jmp)."
+  [program]
   (->> program
        count
        range
@@ -81,9 +89,10 @@
        (filter terminates?)
        first))
 
-(defn solve-2 [s]
+(defn solve-2
   "Fixes the program and returns the value of the accumulator after the fixed
    program terminates."
+  [s]
   (->> s
        parse-program
        fix-program

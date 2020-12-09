@@ -2,99 +2,113 @@
   (:require [clojure.string :as s]
             [clojure.set :refer [union]]))
 
-(defn- parse-bag-list [s]
+(defn- parse-bag-list
   "Parses a list of bags with count."
+  [s]
   (if (= s "no other bags")
     '()
     (->> s
          (re-seq #"(\d+)\s+(\w+\s+\w+)\s+bags?")
          (map (fn [[_ n bag]] [(Integer. n) bag])))))
 
-(defn- map-second [f [a b]]
+(defn- map-second
   "Applies f to the second element of a pair."
+  [f [a b]]
   [a (f b)])
 
-(defn- parse-bag-rule [s]
+(defn- parse-bag-rule
   "Parses a single bag rule as specified by the puzzle."
+  [s]
   (->> s
        (re-matches #"(\w+\s+\w+)\s+bags?\s+contain\s+(.*)\.")
        (drop 1)
        (map-second parse-bag-list)))
 
-(defn- parse-bag-rules [s]
+(defn- parse-bag-rules
   "Parses s into a map of rules."
+  [s]
   (->> s
        s/split-lines
        (map parse-bag-rule)
        (into {})))
 
-(defn- reverse-bag-rules [m]
+(defn- reverse-bag-rules
   "Transforms a map of bag 'contains' rules into a map of bag 'is contained in' rules."
+  [m]
   (->> m
        seq
        (map (fn [[outer inner]] (map (fn [[n bag]] [bag #{outer}]) inner)))
        (map (partial into {}))
        (reduce (partial merge-with union))))
 
-(defn- extend-with [r s]
+(defn- extend-with
   "Extends the set s with the relation r."
+  [r s]
   (union s (apply union (map r s))))
 
-(defn- fixed-point [prev next]
+(defn- fixed-point
   "Reducer function that stops when the value no longer changes."
+  [prev next]
   (if (= next prev)
     (reduced prev)
     next))
 
-(defn- bags-which-can-contain [bag containers-of]
+(defn- bags-which-can-contain
   "Given a bag and a map of 'is contained in' rules, determines which bags the
    given bag can be contained in."
+  [bag containers-of]
   (->> bag
        (containers-of)
        (iterate #(extend-with containers-of %))
        (reduce fixed-point)))
 
-(defn solve-1 [s]
+(defn solve-1
   "Counts how many bag colours can eventually contain at least one shiny gold bag."
+  [s]
   (->> s
        parse-bag-rules
        reverse-bag-rules
        (bags-which-can-contain "shiny gold")
        count))
 
-(defn- bag-opener [bag-rules]
+(defn- bag-opener
   "Returns a function that opens a bag with count and returns the sequence of
-  bags with count contained therein according to bag-rules."
+   bags with count contained therein according to bag-rules."
+  [bag-rules]
   (fn [[n bag]]
     (->> bag
          bag-rules
          (map (fn [[m bag]] [(* n m) bag])))))
 
-(defn- open-bags [bag-rules bags-with-count]
+(defn- open-bags
   "Given a sequence of bags with count, opens each of them and returns the
-  sequence of bags with count contained therein according to bag-rules."
+   sequence of bags with count contained therein according to bag-rules."
+  [bag-rules bags-with-count]
   (->> bags-with-count
        (map (bag-opener bag-rules))
        (apply concat)))
 
-(defn- fixed-point-on [f]
+(defn- fixed-point-on
   "Returns a reducer function that applies f and stops when the value no longer changes."
+  [f]
   (fn [acc x]
     (let [next (f acc x)]
       (if (= next acc)
         (reduced acc)
         next))))
 
-(defn- bags-in [bag bag-rules]
+(defn- bags-in
   "Given a bag, returns all bags contained within it according to bag-rules
    (with counts, not normalized)."
+  [bag bag-rules]
   (->> [[1 bag]]
        (iterate #(open-bags bag-rules %))
        (reduce (fixed-point-on concat))
        (drop 1)))
 
-(defn solve-2 [s]
+(defn solve-2
   "Counts how many bags are contained in one shiny gold bag."
+  [s]
   (->> s
        parse-bag-rules
        (bags-in "shiny gold")
