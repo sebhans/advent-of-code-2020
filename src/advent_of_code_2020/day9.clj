@@ -61,12 +61,26 @@
   (->> (range 2 (inc (count numbers)))
        (map #(take % numbers))))
 
-(defn- contiguous-sets
+(defn- bounded-contiguous-sets
   "Generates a sequence of contiguous sets of at least two numbers starting
-   anywhere in the sequence numbers."
-  [numbers]
+   anywhere in the sequence numbers.
+   Generation begins with small sets and is bounded by the given predicate.
+   As soon as the predicate returns falsey, a set will no longer grow."
+  [predicate numbers]
   (->> (range 0 (dec (count numbers)))
-       (mapcat #(contiguous-sets-from (drop % numbers)))))
+       (mapcat #(->> (contiguous-sets-from (drop % numbers))
+                     (take-while predicate)))))
+
+(defn- sum<=
+  "Returns a predicate that checks if the sum of all numbers in coll is <= the
+   given bound."
+  [bound]
+  #(<= (apply + %) bound))
+
+(defn- sum=
+  "Returns a predicate that checks if the sum of all numbers in coll is equal to n."
+  [n]
+  #(= (apply + %) n))
 
 (defn- find-encryption-weakness
   "Returns the contiguous set of numbers in the XMAS stream which sum up to the
@@ -75,8 +89,8 @@
   (let [first-invalid-number (find-first-invalid-number s window-size)]
     (->> s
          to-numbers
-         contiguous-sets
-         (filter #(= (apply + %) first-invalid-number))
+         (bounded-contiguous-sets (sum<= first-invalid-number))
+         (filter (sum= first-invalid-number))
          first)))
 
 (defn solve-2
