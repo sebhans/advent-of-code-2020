@@ -42,6 +42,57 @@
       count-differences
       num-ones-times-num-threes))
 
+(defn- add-charging-outlet
+  "Adds the joltage of the charging outlet to the given sequence of joltages."
+  [joltages]
+  (conj joltages 0))
+
+(defn- up-to
+  "Returns a vector of joltages up to index n."
+  [joltages n]
+  (subvec joltages 0 (inc n)))
+
+(defn- from
+  "Returns a vector of joltages starting at index n."
+  [joltages n]
+  (subvec joltages n))
+
+(defn- skipping
+  "Returns a vector of joltages with index n removed."
+  [joltages n]
+  (into (subvec joltages 0 n) (subvec joltages (inc n))))
+
+(defn- can-leave-out?
+  "Returns true if the adapter at the given index in joltages can be left out."
+  [joltages n]
+  (<= (- (nth joltages (inc n)) (nth joltages (dec n))) 3))
+
+(defn- number-of-arrangements
+  "Counts the number of valid adapter arrangements.
+   Expects joltages to be a sorted vector (ascending)."
+  [joltages]
+  (let [n (count joltages)
+        middle (quot n 2)]
+    (if (< n 3)
+      1N
+      (let [num-left (number-of-arrangements (-> joltages (up-to middle)))
+            num-right (number-of-arrangements (-> joltages (from middle)))]
+        (if (-> joltages (can-leave-out? middle))
+          (+ (* num-left num-right)
+             (number-of-arrangements (-> joltages (skipping middle))))
+          (* num-left num-right))))))
+
+(defn solve-2
+  "Counts the number of valid adapter arrangements."
+  [s]
+  (-> s
+      parse-joltages
+      add-charging-outlet
+      add-built-in
+      sort
+      vec
+      number-of-arrangements))
+
 (def trial-input "16
 10
 15
