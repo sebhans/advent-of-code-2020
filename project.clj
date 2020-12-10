@@ -2,7 +2,8 @@
   :description "Solutions for the advent of code 2020 puzzles"
   :url "https://github.com/sebhans/advent-of-code-2020"
   :license {:name "public domain"}
-  :dependencies [[org.clojure/clojure "1.10.1"]]
+  :dependencies [[org.clojure/clojure "1.10.1"]
+                 [instaparse "1.4.0"]]
   :main ^:skip-aot advent-of-code-2020.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
