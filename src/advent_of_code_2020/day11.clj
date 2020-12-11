@@ -16,30 +16,30 @@
        (map (fn [row] (->> row (map #(hash-map :tile (tile-of %))) vec)))
        vec))
 
-(defn- for-each-position-in
-  "List comprehension over each position in a matrix.
-   f is called with matrix, row, and column as arguments."
-  [matrix f]
-  (vec (for [row (range (count matrix))]
-         (vec (for [column (range (count (first matrix)))]
-                (f matrix row column))))))
+(defn- map-tiles-in
+  "Maps f over each tile in seat-layout.
+   f is passed seat-layout, the tile map, and the [row column] coordinates."
+  [seat-layout f]
+  (vec (for [row (range (count seat-layout))]
+         (vec (for [column (range (count (first seat-layout)))]
+                (f seat-layout (get-in seat-layout [row column]) [row column]))))))
 
 (defn- link-neighbours
   "Adds a :neighbours key to each tile, which contains a sequence of coordinates
    of the tile's neighbours.
 
    The neighbours are determined by the function find-neighbours, which takes
-   the seat-layout, row, and column and returns a sequence of [row column] pairs
+   the seat-layout and [row column] and returns a sequence of [row column] pairs
    for the neighbours."
   [seat-layout find-neighbours]
-  (for-each-position-in seat-layout #(assoc (get-in %1 [%2 %3])
-                                            :neighbours
-                                            (find-neighbours %1 %2 %3))))
+  (map-tiles-in seat-layout #(assoc (get-in %1 %3)
+                                    :neighbours
+                                    (find-neighbours %1 %3))))
 
 (defn- direct-neighbours
   "Returns the coordinates of the direct neighbours of the given coordinates in
    seat-layout."
-  [seat-layout row column]
+  [seat-layout [row column]]
   (let [num-rows (count seat-layout)
         num-columns (count (first seat-layout))]
     (->> [(when (> row 0) [(when (> column 0) [(dec row) (dec column)])
@@ -62,26 +62,17 @@
 (defn- count-occupied-neighbours
   "Returns the number of occupied neighbours for the given tile in the given
   seat layout."
-  [seat-layout tile]
+  [seat-layout tile _]
   (->> tile
        :neighbours
        (map (partial count-if-occupied seat-layout))
        (apply +)))
 
-(defn- for-each-tile-of
-  "Invokes f for each tile and replaces the tile with the returned value.
-
-   f is passed the seat layout and the tile."
-  [seat-layout f]
-  (vec (for [row seat-layout]
-         (vec (for [tile row]
-                (f seat-layout tile))))))
-
-(defn- neighbours
+(defn- neighbour-matrix
   "Returns a matrix of numbers corresponding to the seat layout.
    Each position contains the number of its occupied neighbours."
   [seat-layout]
-  (for-each-tile-of seat-layout count-occupied-neighbours))
+  (map-tiles-in seat-layout count-occupied-neighbours))
 
 (defn- apply-rules
   "Applies the given rules given by the function change-seat to the seat-layout
@@ -90,25 +81,27 @@
    change-seat is expected to take a layout character and the number of occupied
    neighbours and return a layout character."
   [seat-layout change-seat]
-  (let [neighbours (neighbours seat-layout)]
-    (for-each-position-in seat-layout #(change-seat (get-in seat-layout [%2 %3])
-                                                    (get-in neighbours [%2 %3])))))
+  (let [neighbour-matrix (neighbour-matrix seat-layout)]
+    (map-tiles-in seat-layout #(change-seat %2 (get-in neighbour-matrix %3)))))
 
-(defn- step-rules-1
-  "Takes a layout character and the number of occupied neighbours and returns the
-   layout character after applying the puzzle rules from part 1."
-  [tile number-of-occupied-neighbours]
-  (assoc tile :tile
-         (case (:tile tile)
-           :floor :floor
-           :empty-seat (if (zero? number-of-occupied-neighbours)
-                         :occupied-seat
-                         :empty-seat)
-           :occupied-seat (if (>= number-of-occupied-neighbours 4)
-                            :empty-seat
-                            :occupied-seat))))
+(defn- step-rules-with-neighbour-threshold
+  "Returns a step function that takes a layout character and the number of
+   occupied neighbours and returns the layout character after applying the puzzle
+   rules. How many neighbours are too many, causing people to leave, is given by
+   the neighbour-threshold."
+  [neighbour-threshold]
+  (fn [tile number-of-occupied-neighbours]
+    (update tile :tile
+            #(case %
+               :empty-seat (if (zero? number-of-occupied-neighbours)
+                             :occupied-seat
+                             :empty-seat)
+               :occupied-seat (if (>= number-of-occupied-neighbours neighbour-threshold)
+                                :empty-seat
+                                :occupied-seat)
+               %))))
 
-(defn- fixed-point
+(defn- until-it-no-longer-changes
   "Reducer function that stops when the value no longer changes."
   [prev next]
   (if (= next prev)
@@ -121,14 +114,15 @@
   [seat-layout rules]
   (->> seat-layout
        (iterate #(apply-rules % rules))
-       (reduce fixed-point)))
+       (reduce until-it-no-longer-changes)))
 
 (defn- count-occupied-seats
   "Returns the number of occupied seats in the given seat layout."
   [seat-layout]
   (->> seat-layout
        flatten
-       (filter #(= (:tile %) :occupied-seat))
+       (map :tile)
+       (filter #(= % :occupied-seat))
        count))
 
 (defn solve-1
@@ -138,7 +132,7 @@
   (-> s
       parse-seat-layout
       (link-neighbours direct-neighbours)
-      (watch step-rules-1)
+      (watch (step-rules-with-neighbour-threshold 4))
       count-occupied-seats))
 
 (defn- step-once
@@ -159,29 +153,12 @@
 (defn- line-of-sight-neighbours
   "Returns the coordinates of the seats visible from the given coordinates in
    seat-layout."
-  [seat-layout row column]
-  (let [num-rows (count seat-layout)
-        num-columns (count (first seat-layout))
-        directions [[-1 -1] [-1 0] [-1 1]
-                    [ 0 -1]        [ 0 1]
-                    [ 1 -1] [ 1 0] [ 1 1]]]
-    (->> directions
-         (map #(seat-in-direction seat-layout [row column] %))
-         (filter some?))))
-
-(defn- step-rules-2
-  "Takes a layout character and the number of occupied neighbours and returns the
-   layout character after applying the puzzle rules from part 2."
-  [tile number-of-occupied-neighbours]
-  (assoc tile :tile
-         (case (:tile tile)
-           :floor :floor
-           :empty-seat (if (zero? number-of-occupied-neighbours)
-                         :occupied-seat
-                         :empty-seat)
-           :occupied-seat (if (>= number-of-occupied-neighbours 5)
-                            :empty-seat
-                            :occupied-seat))))
+  [seat-layout start]
+  (->> [[-1 -1] [-1 0] [-1 1]
+        [ 0 -1]        [ 0 1]
+        [ 1 -1] [ 1 0] [ 1 1]]
+       (map #(seat-in-direction seat-layout start %))
+       (filter some?)))
 
 (defn solve-2
   "Returns the number of seats that are occupied after everyone has settled down
@@ -190,7 +167,7 @@
   (-> s
       parse-seat-layout
       (link-neighbours line-of-sight-neighbours)
-      (watch step-rules-2)
+      (watch (step-rules-with-neighbour-threshold 5))
       count-occupied-seats))
 
 (def trial-input "L.LL.LL.LL
