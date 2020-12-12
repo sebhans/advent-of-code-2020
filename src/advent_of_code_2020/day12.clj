@@ -1,49 +1,50 @@
 (ns advent-of-code-2020.day12
   (:require [clojure.string :as s]))
 
-(defn- update-position
+(defn- update-ship-position
   "Returns a function that updates the value of the position in the given direction."
   [direction]
   (fn [value position]
     (update position direction #(+ % value))))
 
-(defn- update-direction
+(defn- update-ship-direction
   "Returns a function that updates the direction in position with the given operator."
   [operator]
   (fn [value position]
     (update position 4 #(mod (+ 4 (operator % (quot value 90))) 4))))
 
-(defn- forward-position
+(defn- forward-position-in-ship-direction
   "Updates the value of the position in the direction of position."
   [value position]
   (update position (get position 4) #(+ % value)))
 
-(def actions
-  "Maps action characters to symbolic actions."
-  {"N" (update-position 3)
-   "S" (update-position 1)
-   "E" (update-position 0)
-   "W" (update-position 2)
-   "L" (update-direction -)
-   "R" (update-direction +)
-   "F" forward-position})
+(def guessed-interpretation
+  "Interpretation of the instructions as first guessed."
+  {:start [0 0 0 0 0]
+   :actions {"N" (update-ship-position 3)
+             "S" (update-ship-position 1)
+             "E" (update-ship-position 0)
+             "W" (update-ship-position 2)
+             "L" (update-ship-direction -)
+             "R" (update-ship-direction +)
+             "F" forward-position-in-ship-direction}})
 
 (defn- parse-instruction
-  "Parses a single instruction."
-  [s]
+  "Parses a single instruction according to the given interpretation."
+  [interpretation s]
   (let [[_ action value] (re-matches #"(.)(\d+)" s)]
-    (partial (actions action) (Integer/parseInt value))))
+    (partial ((interpretation :actions) action) (Integer/parseInt value))))
 
 (defn- parse-instructions
-  "Parses s into a sequence of navigation instructions."
-  [s]
+  "Parses s into a sequence of navigation instructions according to the given interpretation."
+  [interpretation s]
   (->> s
        s/split-lines
-       (map parse-instruction)))
+       (map (partial parse-instruction interpretation))))
 
-(defn- navigate
+(defn- navigate-from
   "Navigates according to the given instructions, beginning at the given start position."
-  [instructions start-position]
+  [start-position instructions]
   (reduce #(%2 %1)
           start-position
           instructions))
@@ -56,14 +57,67 @@
      (Math/abs (- (get position 1)
                   (get position 3)))))
 
-(defn- solve-1
+(defn- solve-with-interpretation
   "Returns the Manhattan distance between the starting position and the location
-   the instructions in s lead to."
-  [s]
-  (-> s
-      parse-instructions
-      (navigate [0 0 0 0 0])
-      manhattan-distance-to-0))
+   the instructions in s lead to according to the given interpretation."
+  [interpretation s]
+  (->> s
+       (parse-instructions interpretation)
+       (navigate-from (interpretation :start))
+       manhattan-distance-to-0))
+
+(def solve-1
+  "Returns the Manhattan distance between the starting position and the location
+   the instructions in s lead to according to the guessed interpretation."
+  (partial solve-with-interpretation guessed-interpretation))
+
+(defn- move
+  "Returns a function that updates the value of the waypoint position in the given direction."
+  [direction]
+  (fn [waypoint value]
+    (update waypoint direction #(+ % value))))
+
+(defn- rotate
+  "Returns a function that rotates a waypoint vector clockwise if sign is +1 or
+   counter-clockwise if sign is -1."
+  [sign]
+  (fn [waypoint value]
+    (loop [i (mod (* (quot value 90) sign) 4)
+           [e s w n] waypoint]
+      (if (zero? i)
+        [e s w n]
+        (recur (dec i) [n e s w])))))
+
+(defn- update-waypoint
+  "Returns a function that updates the waypoint in position with the given operator."
+  [operator]
+  (fn [value position]
+    (update position 4 #(operator % value))))
+
+(defn- forward-position-in-waypoint-direction
+  "Updates the value of the position in the direction of position."
+  [value [se ss sw sn [we ws ww wn :as waypoint]]]
+  [(+ se (* we value))
+   (+ ss (* ws value))
+   (+ sw (* ww value))
+   (+ sn (* wn value))
+   waypoint])
+
+(def printed-interpretation
+  "Interpretation of the instructions as printed on the back."
+  {:start [0 0 0 0 [10 0 0 1]]
+   :actions {"N" (update-waypoint (move 3))
+             "S" (update-waypoint (move 1))
+             "E" (update-waypoint (move 0))
+             "W" (update-waypoint (move 2))
+             "L" (update-waypoint (rotate -1))
+             "R" (update-waypoint (rotate +1))
+             "F" forward-position-in-waypoint-direction}})
+
+(def solve-2
+  "Returns the Manhattan distance between the starting position and the location
+   the instructions in s lead to according to the printed interpretation."
+  (partial solve-with-interpretation printed-interpretation))
 
 (def trial-input "F10
 N3
