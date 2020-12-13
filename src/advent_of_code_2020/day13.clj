@@ -27,6 +27,47 @@
          (apply min-key second)
          (apply *))))
 
+(defn- parse-offsets-and-buses
+  "Parses the bus list into a sequence of [offset bus-id]."
+  [s]
+  (->> s
+       (#(s/split % #","))
+       (map-indexed vector)
+       (filter #(not= (second %) "x"))
+       (map (fn [x] (update x 1 #(BigInteger. %))))))
+
+(defn- find-constellation-timestamp
+  "Returns the smallest n for which n equals bus-offset modulo bus
+   for each [offset bus] pair."
+  ([offsets-and-buses]
+   (let [negated-offsets-and-buses (->> offsets-and-buses
+                                        (map (fn [[offset bus]]
+                                               [(mod (- bus offset) bus) bus]))
+                                        vec)]
+     (find-constellation-timestamp negated-offsets-and-buses 0 0 1)))
+  ([negated-offsets-and-buses i start-n step]
+   (if (>= i (count negated-offsets-and-buses))
+     start-n
+     (let [[no bus] (get negated-offsets-and-buses i)
+           max-n (+ start-n (* step bus))
+           n (->> (range start-n max-n step)
+                  (filter #(= (mod % bus) no))
+                  first)]
+       (find-constellation-timestamp negated-offsets-and-buses
+                                     (inc i)
+                                     n
+                                     (* step bus))))))
+
+(defn solve-2
+  "Returns the earliest timestamp such that all of the listed bus IDs depart at
+   offsets matching their positions in the list."
+  [s]
+  (->> s
+       (s/split-lines)
+       second
+       parse-offsets-and-buses
+       find-constellation-timestamp))
+
 (def trial-input "939
 7,13,x,x,59,x,31,19")
 
