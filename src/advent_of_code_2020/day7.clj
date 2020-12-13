@@ -1,21 +1,28 @@
 (ns advent-of-code-2020.day7
   (:require [clojure.string :as s]
-            [clojure.set :refer [union]]
-            [instaparse.core :as insta]))
+            [clojure.set :refer [union]]))
+
+(defn- parse-bag-list
+  "Parses a list of bags with count."
+  [s]
+  (if (= s "no other bags")
+    '()
+    (->> s
+         (re-seq #"(\d+)\s+(\w+\s+\w+)\s+bags?")
+         (map (fn [[_ n bag]] [(Integer. n) bag])))))
+
+(defn- map-second
+  "Applies f to the second element of a pair."
+  [f [a b]]
+  [a (f b)])
 
 (defn- parse-bag-rule
   "Parses a single bag rule as specified by the puzzle."
   [s]
   (->> s
-       ((insta/parser "rule = bag ws <'contain'> ws contained-bags <'.'>
-                       contained-bags = (counted-bags+ | <'no other bags'>)
-                       counted-bags = {counted-bag <#'\\s*,\\s*'>?}
-                       <counted-bag> = #'\\d+' ws bag
-                       <bag> = #'\\w+\\s+\\w+' ws <#'bags?'>
-                       <ws> = <#'\\s+'>"))
-       (insta/transform {:counted-bags #(vector (Integer. %1) %2)
-                         :contained-bags vector
-                         :rule vector})))
+       (re-matches #"(\w+\s+\w+)\s+bags?\s+contain\s+(.*)\.")
+       (drop 1)
+       (map-second parse-bag-list)))
 
 (defn- parse-bag-rules
   "Parses s into a map of rules."
