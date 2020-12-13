@@ -1,10 +1,5 @@
 (ns advent-of-code-2020.day3)
 
-(defn- repeating
-  "Turns a finite sequence into an infinite sequence by repeating it."
-  [xs]
-  (flatten (repeatedly #(identity xs))))
-
 (defn- parse-tree-map
   "Parses a map of trees as specified by the puzzle and returns a sequence of
 rows, each of which is represented by a sequence of characters, which repeats
@@ -12,15 +7,14 @@ the input row to the right indefinitely."
   [s]
   (->> s
        (re-seq #"\S+")
-       (map seq)
-       (map repeating)))
+       (map seq)))
 
 (defn- tree-at?
   "Checks whether there is a tree in the map at the given column and row."
   [tree-map [column row]]
   (if (>= row (count tree-map))
     false
-    (= (nth (nth tree-map row) column) \#)))
+    (= (nth (nth tree-map row) (mod column (count (first tree-map)))) \#)))
 
 (defn- count-trees
   "Counts the trees encountered when starting at the top-left corner of the map
