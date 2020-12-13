@@ -54,33 +54,16 @@
   [s]
   (find-first-invalid-number s 25))
 
-(defn- contiguous-sets-from
-  "Generates a sequence of contiguous sets of at least two numbers starting
-   at the beginning of the sequence numbers."
-  [numbers]
-  (->> (range 2 (inc (count numbers)))
-       (map #(take % numbers))))
-
-(defn- bounded-contiguous-sets
-  "Generates a sequence of contiguous sets of at least two numbers starting
-   anywhere in the sequence numbers.
-   Generation begins with small sets and is bounded by the given predicate.
-   As soon as the predicate returns falsey, a set will no longer grow."
-  [predicate numbers]
-  (->> (range 0 (dec (count numbers)))
-       (mapcat #(->> (contiguous-sets-from (drop % numbers))
-                     (take-while predicate)))))
-
-(defn- sum<=
-  "Returns a predicate that checks if the sum of all numbers in coll is <= the
-   given bound."
-  [bound]
-  #(<= (apply + %) bound))
-
-(defn- sum=
-  "Returns a predicate that checks if the sum of all numbers in coll is equal to n."
-  [n]
-  #(= (apply + %) n))
+(defn- try-range-until-sum-fits
+  "Tries a range in the vector numbers and expands it to the right if the sum is
+   too small or contracts it from the left if the sum is too high until it fits."
+  [target-sum start end numbers]
+  (let [current-range (subvec numbers start end)
+        indicator (compare (apply + current-range) target-sum)]
+    (cond
+      (zero? indicator) current-range
+      (neg? indicator) (recur target-sum start (inc end) numbers)
+      :else (recur target-sum (inc start) end numbers))))
 
 (defn- find-encryption-weakness
   "Returns the contiguous set of numbers in the XMAS stream which sum up to the
@@ -89,9 +72,8 @@
   (let [first-invalid-number (find-first-invalid-number s window-size)]
     (->> s
          to-numbers
-         (bounded-contiguous-sets (sum<= first-invalid-number))
-         (filter (sum= first-invalid-number))
-         first)))
+         vec
+         (try-range-until-sum-fits first-invalid-number 0 2))))
 
 (defn solve-2
   "Returns the sum of the smallest and largest number of the 'encryption weakness'
