@@ -33,7 +33,7 @@
      :arguments [(second :match)]}
     #"mem\[(\d+)]\s*=\s*(\d+)"
     {:operation :set-mem
-     :arguments [(Long/parseLong (nth :match 1))
+     :arguments [(BigInteger. (nth :match 1))
                  (BigInteger. (nth :match 2))]}
     (throw (IllegalArgumentException. (str "Invalid input line: " s)))))
 
@@ -44,8 +44,8 @@
        s/split-lines
        (map parse-instruction)))
 
-(defn- interpret-mask
-  "Returns an executable interpretation of mask."
+(defn- interpret-mask-v1
+  "Returns an executable interpretation of mask as per version 1 of the decoder chip."
   [mask]
   (let [zero-mask (BigInteger. (s/replace mask "X" "1") 2)
         one-mask (BigInteger. (s/replace mask "X" "0") 2)]
@@ -53,29 +53,22 @@
          (.and zero-mask)
          (.or one-mask))))
 
-(defn- apply-mask
-  "Applies mask to n."
-  [mask n]
-  ((interpret-mask mask) n))
-
-(def operations
-  "Maps operations to functions executing them on state and [arguments]."
+(def operations-v1
+  "Maps operations to functions executing them on state and [arguments] as per
+   version 1 of the decoder chip."
   {:set-mask #(assoc %1 :mask (first %2))
    :set-mem #(assoc-in %1
                        [:memory (first %2)]
-                       (apply-mask (get %1 :mask) (second %2))) })
-
-(defn- run-instruction
-  "Runs one instruction on the given memory state and returns the resulting
-   memory state."
-  [state instruction]
-  ((operations (instruction :operation)) state (instruction :arguments)))
+                       ((interpret-mask-v1  (get %1 :mask)) (second %2))) })
 
 (defn- run-initialization-program
   "Runs the given initialization program on the given memory state and returns the
    resulting memory state."
-  [program]
-  (reduce run-instruction {} program))
+  [operations program]
+  (reduce (fn [state instruction]
+            ((operations (instruction :operation)) state (instruction :arguments)))
+          {}
+          program))
 
 (defn- sum-memory
   "Returns the sum of all values in the given memory state."
@@ -84,17 +77,63 @@
 
 (defn solve-1
   "Returns the sum of all values left in memory after the initialization program
-   in s completes."
+   in s completes according to version 1 of the decoder chip."
   [s]
   (->> s
        parse-initialization-program
-       run-initialization-program
+       (run-initialization-program operations-v1)
+       sum-memory))
+
+(defn- expand-floating-bits
+  "Takes a value and return a sequence of values in which the floating bits of
+   mask are applied in all possible combinations."
+  [value mask]
+  (loop [values (list value)
+         m (seq mask)]
+    (if (empty? m)
+      values
+      (recur (if (not= (first m) \X)
+               values
+               (let [bit (dec (count m))]
+                 (into (map #(.clearBit % bit) values)
+                       (map #(.setBit % bit) values))))
+             (rest m)))))
+
+(defn- interpret-mask-v2
+  "Returns an executable interpretation of mask as per version 2 of the decoder chip."
+  [mask]
+  (let [one-mask (BigInteger. (s/replace mask "X" "0") 2)]
+    #(-> %
+         (.or one-mask)
+         (expand-floating-bits mask))))
+
+(def operations-v2
+  "Maps operations to functions executing them on state and [arguments] as per
+   version 2 of the decoder chip."
+  {:set-mask #(assoc %1 :mask (first %2))
+   :set-mem (fn [state arguments]
+              (reduce #(assoc-in %1 [:memory %2] (second arguments))
+                      state
+                      ((interpret-mask-v2 (get state :mask)) (first arguments))))})
+
+(defn solve-2
+  "Returns the sum of all values left in memory after the initialization program
+   in s completes according to version 2 of the decoder chip."
+  [s]
+  (->> s
+       parse-initialization-program
+       (run-initialization-program operations-v2)
        sum-memory))
 
 (def trial-input "mask = XXXXXXXXXXXXXXXXXXXXXXXXXXXXX1XXXX0X
 mem[8] = 11
 mem[7] = 101
 mem[8] = 0")
+
+(def trial-input-2 "mask = 000000000000000000000000000000X1001X
+mem[42] = 100
+mask = 00000000000000000000000000000000X0XX
+mem[26] = 1")
 
 (def real-input "mask = 110100X1X01011X01X0X000111X00XX1010X
 mem[29267] = 4155
