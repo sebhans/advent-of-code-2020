@@ -12,8 +12,8 @@
                solve-1 (ns-resolve day-ns (symbol "solve-1"))
                solve-2 (ns-resolve day-ns (symbol "solve-2"))
                real-input (var-get (ns-resolve day-ns (symbol "real-input")))]
-           (println (format "Day %d, 1st puzzle: %s" n (solve-1 real-input)))
-           (println (format "Day %d, 2nd puzzle: %s" n (solve-2 real-input))))
+           (time (println (format "Day %d, 1st puzzle: %s" n (solve-1 real-input))))
+           (time (println (format "Day %d, 2nd puzzle: %s" n (solve-2 real-input)))))
          (catch FileNotFoundException e :ignore-day-if-not-found))))
 
 (defn -main
