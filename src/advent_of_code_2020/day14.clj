@@ -90,9 +90,9 @@
          floating-bits floating-bits]
     (if (empty? floating-bits)
       values
-      (recur (let [bit (first floating-bits)]
-               (into values (map #(.clearBit % bit) values)))
-             (rest floating-bits)))))
+      (recur (let [^Long bit (get floating-bits 0)]
+               (reduce conj values (map (fn [^BigInteger v] (.clearBit v bit)) values)))
+             (subvec floating-bits 1)))))
 
 (defn- interpret-mask-v2
   "Returns an executable interpretation of mask as per version 2 of the decoder chip."
