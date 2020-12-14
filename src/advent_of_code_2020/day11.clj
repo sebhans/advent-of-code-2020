@@ -22,10 +22,10 @@
    f is passed the matrix, the entry, and its index."
   [matrix f]
   (if (instance? clojure.lang.IPersistentVector matrix)
-    (vec (map-indexed #(f matrix %2 %1) matrix))
+    (into [] (map-indexed #(f matrix %2 %1)) matrix)
     (update matrix :entries
-            (fn [entries]
-              (vec (map-indexed #(f matrix %2 %1) entries))))))
+            (fn [^clojure.lang.IPersistentVector entries]
+              (into [] (map-indexed #(f matrix %2 %1)) entries)))))
 
 (defn- neighbour-matrix
   "Generates a matrix of neighbours (sequence of neighbour coordinates).
@@ -35,6 +35,11 @@
    for the neighbours."
   [seat-layout find-neighbours]
   (map-tiles-in seat-layout #(find-neighbours %1 %3)))
+
+(defmacro conj-when
+  "If test is not nil, the result of expr is conj'ed onto s."
+  [s test expr]
+  `(if ~test (conj ~s ~expr) ~s))
 
 (defn- direct-neighbours
   "Returns the indices of the direct neighbours of the given index in
@@ -46,17 +51,17 @@
         first-row? (< i num-cols)
         last-row? (>= i (* num-cols (dec num-rows)))
         first-col? (zero? (mod i num-cols))
-        last-col? (= (mod i num-cols) max-col)]
-    (->> [(when (not first-row?) [(when (not first-col?) (- i num-cols 1))
-                                  (- i num-cols)
-                                  (when (not last-col?) (- i max-col))])
-          (when (not first-col?) (dec i))
-          (when (not last-col?) (inc i))
-          (when (not last-row?) [(when (not first-col?) (+ i max-col))
-                                 (+ i num-cols)
-                                 (when (not last-col?) (+ i num-cols 1))])]
-         flatten
-         (filter some?))))
+        last-col? (= (mod i num-cols) max-col)
+        neighbours []
+        neighbours (conj-when neighbours (and (not first-row?) (not first-col?)) (- i num-cols 1))
+        neighbours (conj-when neighbours (not first-row?) (- i num-cols))
+        neighbours (conj-when neighbours (and (not first-row?) (not last-col?)) (- i max-col))
+        neighbours (conj-when neighbours (not first-col?) (dec i))
+        neighbours (conj-when neighbours (not last-col?) (inc i))
+        neighbours (conj-when neighbours (and (not last-row?) (not first-col?)) (+ i max-col))
+        neighbours (conj-when neighbours (not last-row?) (+ i num-cols))
+        neighbours (conj-when neighbours (and (not last-row?) (not last-col?)) (+ i num-cols 1))]
+    neighbours))
 
 (defn- count-occupied-neighbours
   "Returns the number of occupied neighbours for the given tile in the given
@@ -83,7 +88,7 @@
    change-seat is expected to take a layout character and the number of occupied
    neighbours and return a layout character."
   [seat-layout neighbours change-seat]
-  (let [neighbour-count-matrix (neighbour-count-matrix seat-layout neighbours)]
+  (let [^clojure.lang.IPersistentVector neighbour-count-matrix (neighbour-count-matrix seat-layout neighbours)]
     (map-tiles-in seat-layout #(change-seat %2 (get neighbour-count-matrix %3)))))
 
 (defn- step-rules-with-neighbour-threshold
@@ -91,8 +96,8 @@
    occupied neighbours and returns the layout character after applying the puzzle
    rules. How many neighbours are too many, causing people to leave, is given by
    the neighbour-threshold."
-  [neighbour-threshold]
-  (fn [tile number-of-occupied-neighbours]
+  [^Long neighbour-threshold]
+  (fn [^clojure.lang.Keyword tile ^Long number-of-occupied-neighbours]
     (case tile
       :empty-seat (if (zero? number-of-occupied-neighbours)
                     :occupied-seat
@@ -187,7 +192,8 @@
                                 [(quot start (seat-layout :width))
                                  (mod start (seat-layout :width))]
                                 %))
-       (filter some?)))
+       (filter some?)
+       vec))
 
 (defn solve-2
   "Returns the number of seats that are occupied after everyone has settled down
