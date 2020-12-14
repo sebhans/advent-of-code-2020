@@ -56,10 +56,8 @@
 (def operations-v1
   "Maps operations to functions executing them on state and [arguments] as per
    version 1 of the decoder chip."
-  {:set-mask #(assoc %1 :mask (first %2))
-   :set-mem #(assoc-in %1
-                       [:memory (first %2)]
-                       ((interpret-mask-v1  (get %1 :mask)) (second %2))) })
+  {:set-mask #(assoc %1 :mask (interpret-mask-v1 (first %2)))
+   :set-mem #(assoc-in %1 [:memory (first %2)] ((get %1 :mask) (second %2)))})
 
 (defn- run-initialization-program
   "Runs the given initialization program on the given memory state and returns the
@@ -85,36 +83,34 @@
        sum-memory))
 
 (defn- expand-floating-bits
-  "Takes a value and return a sequence of values in which the floating bits of
-   mask are applied in all possible combinations."
-  [value mask]
+  "Takes a value and returns a sequence of values in which the floating bits are
+   applied in all possible combinations."
+  [value floating-bits]
   (loop [values (list value)
-         m (seq mask)]
-    (if (empty? m)
+         floating-bits floating-bits]
+    (if (empty? floating-bits)
       values
-      (recur (if (not= (first m) \X)
-               values
-               (let [bit (dec (count m))]
-                 (into (map #(.clearBit % bit) values)
-                       (map #(.setBit % bit) values))))
-             (rest m)))))
+      (recur (let [bit (first floating-bits)]
+               (into values (map #(.clearBit % bit) values)))
+             (rest floating-bits)))))
 
 (defn- interpret-mask-v2
   "Returns an executable interpretation of mask as per version 2 of the decoder chip."
   [mask]
-  (let [one-mask (BigInteger. (s/replace mask "X" "0") 2)]
+  (let [one-mask (BigInteger. (s/replace mask \X \1) 2)
+        floating-bits (->> mask reverse (map-indexed vector) (filter #(= (second %) \X)) (map first) vec)]
     #(-> %
          (.or one-mask)
-         (expand-floating-bits mask))))
+         (expand-floating-bits floating-bits))))
 
 (def operations-v2
   "Maps operations to functions executing them on state and [arguments] as per
    version 2 of the decoder chip."
-  {:set-mask #(assoc %1 :mask (first %2))
+  {:set-mask #(assoc %1 :mask (interpret-mask-v2 (first %2)))
    :set-mem (fn [state arguments]
               (reduce #(assoc-in %1 [:memory %2] (second arguments))
                       state
-                      ((interpret-mask-v2 (get state :mask)) (first arguments))))})
+                      ((get state :mask) (first arguments))))})
 
 (defn solve-2
   "Returns the sum of all values left in memory after the initialization program
