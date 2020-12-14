@@ -21,9 +21,11 @@
   "Maps f over each entry in a matrix.
    f is passed the matrix, the entry, and its index."
   [matrix f]
-  (update matrix :entries
-          (fn [entries]
-            (vec (map-indexed #(f matrix %2 %1) entries)))))
+  (if (instance? clojure.lang.IPersistentVector matrix)
+    (vec (map-indexed #(f matrix %2 %1) matrix))
+    (update matrix :entries
+            (fn [entries]
+              (vec (map-indexed #(f matrix %2 %1) entries))))))
 
 (defn- neighbour-matrix
   "Generates a matrix of neighbours (sequence of neighbour coordinates).
@@ -59,20 +61,20 @@
 (defn- count-occupied-neighbours
   "Returns the number of occupied neighbours for the given tile in the given
   seat layout."
-  [neighbours-entries seat-layout _ index]
-  (let [seat-layout-entries (:entries seat-layout)]
-    (reduce (fn [sum i]
-              (if (= (get (:entries seat-layout) i) :occupied-seat)
-                (inc sum)
-                sum))
-            0
-            (get neighbours-entries index))))
+  [^clojure.lang.IPersistentVector neighbours-entries ^clojure.lang.IPersistentVector seat-layout-entries _ ^Long index]
+  (reduce (fn [^Long sum ^Long i]
+            (if (= (get seat-layout-entries i) :occupied-seat)
+              (inc sum)
+              sum))
+          0
+          (get neighbours-entries index)))
 
 (defn- neighbour-count-matrix
   "Returns a matrix of numbers corresponding to the seat layout.
    Each position contains the number of its occupied neighbours."
   [seat-layout neighbours]
-  (map-tiles-in seat-layout (partial count-occupied-neighbours (:entries neighbours))))
+  (map-tiles-in (:entries seat-layout)
+                (partial count-occupied-neighbours (:entries neighbours))))
 
 (defn- apply-rules
   "Applies the given rules given by the function change-seat to the seat-layout
@@ -81,7 +83,7 @@
    change-seat is expected to take a layout character and the number of occupied
    neighbours and return a layout character."
   [seat-layout neighbours change-seat]
-  (let [neighbour-count-matrix (:entries (neighbour-count-matrix seat-layout neighbours))]
+  (let [neighbour-count-matrix (neighbour-count-matrix seat-layout neighbours)]
     (map-tiles-in seat-layout #(change-seat %2 (get neighbour-count-matrix %3)))))
 
 (defn- step-rules-with-neighbour-threshold
