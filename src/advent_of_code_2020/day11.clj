@@ -56,19 +56,17 @@
          flatten
          (filter some?))))
 
-(defn- count-if-occupied
-  "Returns 1 if there is a seat at the given index and it is occupied,
-   0 otherwise."
-  [seat-layout-entries index]
-  (if (= (get seat-layout-entries index) :occupied-seat) 1 0))
-
 (defn- count-occupied-neighbours
   "Returns the number of occupied neighbours for the given tile in the given
   seat layout."
   [neighbours-entries seat-layout _ index]
-  (->> (get neighbours-entries index)
-       (map (partial count-if-occupied (:entries seat-layout)))
-       (apply +)))
+  (let [seat-layout-entries (:entries seat-layout)]
+    (reduce (fn [sum i]
+              (if (= (get (:entries seat-layout) i) :occupied-seat)
+                (inc sum)
+                sum))
+            0
+            (get neighbours-entries index))))
 
 (defn- neighbour-count-matrix
   "Returns a matrix of numbers corresponding to the seat layout.
