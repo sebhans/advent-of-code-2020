@@ -6,4 +6,6 @@
   :main ^:skip-aot advent-of-code-2020.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
-                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
+                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}
+             :dev {:dependencies [[com.clojure-goes-fast/clj-async-profiler "0.4.1"]]
+                   :jvm-opts ["-Djdk.attach.allowAttachSelf", "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints"]}})
