@@ -7,26 +7,28 @@
        (re-seq #"\d+")
        (map #(Long/parseLong %))))
 
+(defrecord GameState [^Long last-turn ^Long last-number ^clojure.lang.PersistentHashMap spoken-at])
+
 (defn- game-state-from
   "Creates a game state from the given starting numbers."
   [starting-numbers]
   (let [with-turns (map-indexed #(vector %2 (inc %1)) starting-numbers)]
-    {:last-number (first (last with-turns))
-     :last-turn (second (last with-turns))
-     :spoken-at (apply hash-map (flatten (butlast with-turns)))}))
+    (GameState. (second (last with-turns))
+                (first (last with-turns))
+                (apply hash-map (flatten (butlast with-turns))))))
 
 (defn- speak-next-number
   "Speaks the next number given the current game state."
-  [state]
-  (let [last-turn (state :last-turn)
-        most-recently-spoken-number (state :last-number)
-        turn-most-recently-spoken-number-was-spoken-before ((state :spoken-at) most-recently-spoken-number)]
-    (-> state
-        (assoc :last-number (if turn-most-recently-spoken-number-was-spoken-before
-                              (- last-turn turn-most-recently-spoken-number-was-spoken-before)
-                              0))
-        (update :last-turn inc)
-        (assoc-in [:spoken-at most-recently-spoken-number] last-turn))))
+  [^GameState state]
+  (let [^Long last-turn (:last-turn state)
+        ^Long most-recently-spoken-number (:last-number state)
+        ^clojure.lang.PersistentHashMap spoken-at (:spoken-at state)
+        ^Long turn-most-recently-spoken-number-was-spoken-before (spoken-at most-recently-spoken-number)]
+    (GameState. (inc last-turn)
+                (if turn-most-recently-spoken-number-was-spoken-before
+                  (- last-turn turn-most-recently-spoken-number-was-spoken-before)
+                  0)
+                (assoc spoken-at most-recently-spoken-number last-turn))))
 
 (defn- number-stream
   "Generates a lazy sequence of number vectors, representing the game state."
