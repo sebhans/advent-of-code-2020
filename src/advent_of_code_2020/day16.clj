@@ -1,5 +1,6 @@
 (ns advent-of-code-2020.day16
-  (:require [clojure.string :as s]))
+  (:require [clojure.string :as s]
+            [clojure.set :refer [difference map-invert]]))
 
 (defn- parse-field
   "Parses a single fiel."
@@ -14,14 +15,16 @@
   [s]
   (->> s
        (s/split-lines)
-       (map parse-field)))
+       (map parse-field)
+       vec))
 
 (defn- parse-ticket
   "Parses a single ticket."
   [s]
   (->> s
        (#(s/split % #","))
-       (map #(Long/parseLong %))))
+       (map #(Long/parseLong %))
+       vec))
 
 (defn- parse-tickets
   "Parses a list of tickets."
@@ -29,7 +32,8 @@
   (->> s
        (s/split-lines)
        (drop 1)
-       (map parse-ticket)))
+       (map parse-ticket)
+       vec))
 
 (defn- parse-notes
   "Parses the notes."
@@ -73,6 +77,61 @@
          (mapcat (partial invalid-values fields))
          (apply +))))
 
+(defn ticket-valid?
+  "Returns truthy if the given ticket is valid."
+  [fields ticket]
+  (empty? (invalid-values fields ticket)))
+
+(defn candidate-fields
+  "Returns a set of field names for which all given values would be valid."
+  [values fields]
+  (->> fields
+       (filter (fn [field] (every? #(valid-for-field? field %) values)))
+       (map :field)
+       set))
+
+(defn reduce-field-assignments
+  "Takes a map of field positions to candidates and reduces it until each position
+  is assigned only one field."
+  [assignments]
+  (let [unique? (group-by #(= (count (assignments %)) 1) (keys assignments))]
+    (if (zero? (count (unique? false)))
+      assignments
+      (let [unique-fields (set (mapcat #(assignments %) (unique? true)))]
+        (recur (reduce (fn [assignments position]
+                         (update assignments position #(difference % unique-fields)))
+                       assignments
+                       (unique? false)))))))
+
+(defn determine-field-assignments
+  "Returns a mapping of field position to field name."
+  [notes]
+  (let [{fields :fields nearby-tickets :nearby-tickets} notes
+        valid-nearby-tickets (filter (partial ticket-valid? fields) nearby-tickets)]
+    (->> (range 0 (count fields))
+         (map (fn [position]
+                (candidate-fields (map #(get % position) valid-nearby-tickets) fields)))
+         (map-indexed vector)
+         (into {})
+         reduce-field-assignments
+         (map (fn [[position fields]] [position (first fields)]))
+         (into {}))))
+
+(defn solve-2
+  "Returns the product of the values of the departure fields of my ticket."
+  [s]
+  (let [notes (parse-notes s)
+        field-assignments (determine-field-assignments notes)
+        departure-fields (->> (notes :fields)
+                              (map :field)
+                              (filter #(.startsWith % "departure"))
+                              (map (map-invert field-assignments))
+                              set)
+        my-ticket (notes :my-ticket)]
+    (->> departure-fields
+         (map #(get my-ticket %))
+         (apply *))))
+
 (def trial-input "class: 1-3 or 5-7
 row: 6-11 or 33-44
 seat: 13-40 or 45-50
@@ -85,6 +144,18 @@ nearby tickets:
 40,4,50
 55,2,20
 38,6,12")
+
+(def trial-input-2 "class: 0-1 or 4-19
+row: 0-5 or 8-19
+seat: 0-13 or 16-19
+
+your ticket:
+11,12,13
+
+nearby tickets:
+3,9,18
+15,1,5
+5,14,9")
 
 (def real-input "departure location: 27-374 or 395-974
 departure station: 40-287 or 295-953
