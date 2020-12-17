@@ -44,30 +44,20 @@
      :nearby-tickets (parse-tickets nearby-tickets)}))
 
 (defn- in-range?
-  "Returns truthy if the value is in the range (inclusive)."
+  "Returns true if the value is in the range (inclusive)."
   [[start end] value]
   (<= start value end))
 
 (defn- valid-for-field?
-  "Returns truthy if the value is not valid for the field."
+  "Returns truthy if the value is valid for the field."
   [field value]
-  (->> field
-       :ranges
-       (filter #(in-range? % value))
-       not-empty))
-
-(def invalid-for-field? (complement valid-for-field?))
-
-(defn- invalid-for-all-fields?
-  "Returns truthy if the value is not valid for any field."
-  [fields value]
-  (every? #(invalid-for-field? % value) fields))
+  (some #(in-range? % value) (field :ranges)))
 
 (defn- invalid-values
   "Returns a sequence of field values in a ticket which are not valid for any field."
   [fields ticket]
   (->> ticket
-       (filter (partial invalid-for-all-fields? fields))))
+       (filter (fn [value] (not-any? #(valid-for-field? % value) fields)))))
 
 (defn solve-1
   "Returns the ticket scanning error rate."
@@ -78,7 +68,7 @@
          (apply +))))
 
 (defn ticket-valid?
-  "Returns truthy if the given ticket is valid."
+  "Returns true if the given ticket is valid."
   [fields ticket]
   (empty? (invalid-values fields ticket)))
 
@@ -97,7 +87,7 @@
   (let [unique? (group-by #(= (count (assignments %)) 1) (keys assignments))]
     (if (zero? (count (unique? false)))
       assignments
-      (let [unique-fields (set (mapcat #(assignments %) (unique? true)))]
+      (let [unique-fields (set (mapcat assignments (unique? true)))]
         (recur (reduce (fn [assignments position]
                          (update assignments position #(difference % unique-fields)))
                        assignments
@@ -125,11 +115,10 @@
         departure-fields (->> (notes :fields)
                               (map :field)
                               (filter #(.startsWith % "departure"))
-                              (map (map-invert field-assignments))
-                              set)
-        my-ticket (notes :my-ticket)]
+                              (map (map-invert field-assignments)))
+        value-in-my-ticket (partial get (notes :my-ticket))]
     (->> departure-fields
-         (map #(get my-ticket %))
+         (map value-in-my-ticket)
          (apply *))))
 
 (def trial-input "class: 1-3 or 5-7
