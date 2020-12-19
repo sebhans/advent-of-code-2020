@@ -37,7 +37,7 @@
   [rule rules]
   (if (re-find #"\d" rule)
     (recur (replace-rule-numbers rule rules) rules)
-    (re-pattern (s/replace rule #"[\" ]" ""))))
+    (s/replace rule #"[\" ]" "")))
 
 (defn- count-matches
   "Returns the number of messages that completely match the regex."
@@ -53,7 +53,40 @@
   (let [{rules :rules messages :messages} (parse-rules-and-messages s)]
     (->> rules
          (to-regex "0")
+         re-pattern
          (count-matches messages))))
+
+(defn number-of-matches
+  "Returns the number of times the regex matches in s."
+  [regex-as-string s]
+  (let [regex (re-pattern (str regex-as-string "(" regex-as-string ".*|$)"))]
+    (loop [s s
+           n 0]
+      (if-let [match (re-matches regex s)]
+        (recur (get match 1) (inc n))
+        n))))
+
+(defn solve-2
+  "Returns the number of messages that completely match rule 0
+  with updated rules 8 and 11.
+
+  Uses the fact that rules 8 and 11 occur only in rule 0 and together
+  effectively say that the message must consist of a sequence matching rule 42
+  repeatedly, followed by a sequence matching rule 31 repeatedly, and that the
+  matches of rule 42 must outnumber the matches of rule 31."
+  [s]
+  (let [{rules :rules messages :messages} (parse-rules-and-messages s)
+        rule-42 (to-regex "42" rules)
+        rule-31 (to-regex "31" rules)
+        rule-0 (str "(" rule-42 "+)" "(" rule-31 "+)")
+        rule-0-regex (re-pattern rule-0)]
+    (->> messages
+         (map #(re-matches rule-0-regex %))
+         (filter identity)
+         (map (fn [[_ fortytwos thirtyones]]
+                (> (number-of-matches rule-42 fortytwos) (number-of-matches rule-31 thirtyones))))
+         (filter identity)
+         count)))
 
 (def trial-input "0: 4 1 5
 1: 2 3 | 3 2
