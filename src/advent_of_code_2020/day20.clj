@@ -1,4 +1,4 @@
-(ns advent-of-code-2020.day20
+  (ns advent-of-code-2020.day20
   (:require [clojure.string :as s]
             [clojure.set :refer [intersection]]))
 
@@ -11,50 +11,292 @@
        (apply +)))
 
 (defn- parse-single-tile-borders
-  "Parses a single tile into a map including the set of binary encodings of all
-  borders in any orientation."
+  "Parses a single tile into a map with a binary encoding of each border."
   [s]
   (let [[header & tile-lines] (s/split-lines s)
         [_ tile-id] (re-matches #"Tile (\d+):" header)]
     {:id (Long/parseLong tile-id)
-     :borders #{(encode-border (first tile-lines))
-                (encode-border (last tile-lines))
-                (encode-border (map first tile-lines))
-                (encode-border (map last tile-lines))
-                (encode-border (reverse (first tile-lines)))
-                (encode-border (reverse (last tile-lines)))
-                (encode-border (reverse (map first tile-lines)))
-                (encode-border (reverse (map last tile-lines)))}}))
+     :image (map #(apply str (butlast (rest %))) (butlast (rest tile-lines)))
+     :n (encode-border (first tile-lines))
+     :s (encode-border (last tile-lines))
+     :w (encode-border (map first tile-lines))
+     :e (encode-border (map last tile-lines))
+     :nr (encode-border (reverse (first tile-lines)))
+     :sr (encode-border (reverse (last tile-lines)))
+     :wr (encode-border (reverse (map first tile-lines)))
+     :er (encode-border (reverse (map last tile-lines)))}))
 
 (defn- parse-all-tile-borders
   "Parses a set of tiles into a sequence of tile maps."
   [s]
   (map parse-single-tile-borders (s/split s #"\n\n")))
 
-(defn- unique-borders
-  "Returns a set of borders which are unique among all tiles."
+(defn- border-encodings
+  "Returns the set of border encodings of the given tile."
+  [tile]
+  (hash-set (:n tile)
+            (:s tile)
+            (:w tile)
+            (:e tile)
+            (:nr tile)
+            (:sr tile)
+            (:wr tile)
+            (:er tile)))
+
+(defn- unique-border-encodings
+  "Returns a set of border encodings which are unique among all tiles."
   [tiles]
   (->> tiles
-       (mapcat :borders)
+       (mapcat border-encodings)
        frequencies
-       (filter (fn [[_ frequency]] (= frequency 1)))
+       (filter (fn [[encoding frequency]] (= frequency 1)))
        (map first)
        set))
 
 (defn- with-4
   "Returns all tiles with four of their border encodings from the given set."
   [tiles search-set]
-  (filter #(= 4 (count (intersection (:borders %) search-set))) tiles))
+  (filter #(= 4 (count (intersection (border-encodings %) search-set))) tiles))
 
 (defn solve-1
   "Returns the product of the tile IDs of the corner tiles in s."
   [s]
   (let [tiles (parse-all-tile-borders s)
-        unique-borders (unique-borders tiles)
-        corner-tiles (with-4 tiles unique-borders)]
+        unique-border-encodings (unique-border-encodings tiles)
+        corner-tiles (with-4 tiles unique-border-encodings)]
     (->> corner-tiles
          (map :id)
          (apply *))))
+
+(defn- borders
+  "Returns a map of border encoding to direction of the given tile."
+  [tile]
+  (hash-map (:n tile) :n
+            (:s tile) :s
+            (:w tile) :w
+            (:e tile) :e
+            (:nr tile) :nr
+            (:sr tile) :sr
+            (:wr tile) :wr
+            (:er tile) :er))
+
+(defn- transpose-image
+  "Transposes an image."
+  [image]
+  (apply mapv str image))
+
+(defn- transpose-tile
+  "Transposes a tile."
+  [tile]
+  (update (assoc tile
+                 :n (tile :w)
+                 :nr (tile :wr)
+                 :w (tile :n)
+                 :wr (tile :nr)
+                 :s (tile :e)
+                 :sr (tile :er)
+                 :e (tile :s)
+                 :er (tile :sr))
+          :image transpose-image))
+
+(defn- flipv-image
+  "Flips an image vertically."
+  [image]
+  (vec (reverse image)))
+
+(defn- flipv-tile
+  "Flips a tile vertically."
+  [tile]
+  (update (assoc tile
+                 :n (tile :s)
+                 :nr (tile :sr)
+                 :w (tile :wr)
+                 :wr (tile :w)
+                 :s (tile :n)
+                 :sr (tile :nr)
+                 :e (tile :er)
+                 :er (tile :e))
+          :image flipv-image))
+
+(defn- fliph-image
+  "Flips an image horizontally."
+  [image]
+  (mapv s/reverse image))
+
+(defn- fliph-tile
+  "Flips a tile horizontally."
+  [tile]
+  (update (assoc tile
+                 :n (tile :nr)
+                 :nr (tile :n)
+                 :w (tile :e)
+                 :wr (tile :er)
+                 :s (tile :sr)
+                 :sr (tile :s)
+                 :e (tile :w)
+                 :er (tile :wr))
+          :image fliph-image))
+
+(defn- rotate-to-west
+  "Rotates the tile so that the given direction matches west."
+  [tile direction]
+  (cond
+    (= direction :w) tile
+    (= direction :wr) (-> tile flipv-tile)
+    (= direction :e) (-> tile fliph-tile)
+    (= direction :er) (-> tile fliph-tile flipv-tile)
+    (= direction :s) (-> tile transpose-tile fliph-tile)
+    (= direction :sr) (-> tile transpose-tile flipv-tile fliph-tile)
+    (= direction :n) (-> tile transpose-tile)
+    (= direction :nr) (-> tile transpose-tile flipv-tile)
+    :else (throw (UnsupportedOperationException.
+                  (str "Direction " direction " to west")))))
+
+(defn- find-and-align-next-tile
+  "Finds the tile in tiles that fits to the right of the given tile and returns
+  it propertly oriented."
+  [tiles tile]
+  (let [border (:e tile)
+        [direction next-tile] (->> tiles
+                                   vals
+                                   (map #(vector ((borders %) border) %))
+                                   (filter first)
+                                   first)]
+    (rotate-to-west next-tile direction)))
+
+(defn- assemble-row
+  "Returns an assembled line of the given width starting with the given
+  start tile."
+  ([tiles width start-tile]
+   (loop [tiles (dissoc tiles (:id start-tile))
+          row [start-tile]]
+     (if (= (.size row) width)
+       row
+       (let [next-tile (find-and-align-next-tile tiles (last row))]
+         (recur (dissoc tiles (:id next-tile)) (conj row next-tile)))))))
+
+(defn- rotate-to-north
+  "Rotates the tile so that the given direction matches north."
+  [tile direction]
+  (cond
+    (= direction :n) tile
+    (= direction :nr) (-> tile fliph-tile)
+    (= direction :s) (-> tile flipv-tile)
+    (= direction :sr) (-> tile flipv-tile fliph-tile)
+    (= direction :e) (-> tile transpose-tile flipv-tile)
+    (= direction :w) (-> tile transpose-tile)
+    :else (throw (UnsupportedOperationException.
+                  (str "Direction " direction " to north")))))
+
+(defn- find-and-align-first-tile
+  "Finds the tile in tiles that fits to the bottom of the given tile and returns
+  it propertly oriented."
+  [tiles tile]
+  (let [border (:s tile)
+        [direction next-tile] (->> tiles
+                                   vals
+                                   (map #(vector ((borders %) border) %))
+                                   (filter first)
+                                   first)]
+    (rotate-to-north next-tile direction)))
+
+(defn- which-of
+  "Returns the direction which matches one of border-encodings."
+  [tile directions border-encodings]
+  (->> directions
+       (map #(vector % (% tile)))
+       (filter #(border-encodings (second %)))
+       (map first)
+       first))
+
+(defn- assemble-tiles
+  "Returns a vector of vectors of tiles in the correct alignment."
+  [tiles]
+  (let [unique-border-encodings (unique-border-encodings tiles)
+        a-corner (first (with-4 tiles unique-border-encodings))
+        corner-west (which-of a-corner [:w :e] unique-border-encodings)
+        corner-north (which-of a-corner [:n :s] unique-border-encodings)
+        oriented-corner (rotate-to-north (rotate-to-west a-corner corner-west)
+                                         corner-north)
+        width (long (Math/sqrt (count tiles)))]
+    (loop [tiles (into {} (map #(vector (:id %) %) tiles))
+           rows []
+           first-tile-in-row oriented-corner]
+      (if (= (.size rows) width)
+        rows
+        (let [row (assemble-row tiles width first-tile-in-row)
+              tiles (reduce #(dissoc %1 (:id %2)) tiles row)]
+          (if (empty? tiles)
+            (conj rows row)
+            (recur tiles
+                   (conj rows row)
+                   (find-and-align-first-tile tiles first-tile-in-row))))))))
+
+(defn- assemble-image
+  "Returns the assembled image."
+  [tiles]
+  (->> tiles
+       assemble-tiles
+       (mapcat
+        (fn [rows]
+          (reduce (fn [image tile]
+                    (map str image (:image tile)))
+                  (repeat (count tiles) "")
+                  rows)))
+       vec))
+
+(defn- match-positions
+  "Returns a sequence of match positions for re in s."
+  [re s]
+  (let [matcher (re-matcher re s)]
+    (->> (repeatedly #(when (re-find matcher)
+                        (.start matcher)))
+         (take-while identity))))
+
+(defn- find-sea-monsters
+  "Returns a sequence of possible locations of sea monsters."
+  [image]
+  (->> image
+       (map-indexed (fn [i row]
+                      (->> (match-positions #"#....##....##....###" row)
+                           (map #(vector i %)))))
+       (mapcat identity)
+       (filter (fn [[i j]] (and (pos? i) (< i (dec (.size image))))))
+       (filter (fn [[i j]]
+                 (re-matches #"..................#."
+                             (subs (get image (dec i))
+                                   j
+                                   (+ j 20)))))
+       (filter (fn [[i j]]
+                 (re-matches #".#..#..#..#..#..#..."
+                             (subs (get image (inc i))
+                                   j
+                                   (+ j 20)))))))
+
+(defn- find-sea-monsters-in-all-orientations
+  "Returns a sequence of possible locations of sea monsters."
+  [image]
+  (->> [(find-sea-monsters image)
+        (find-sea-monsters (-> image transpose-image))
+        (find-sea-monsters (-> image fliph-image))
+        (find-sea-monsters (-> image flipv-image))
+        (find-sea-monsters (-> image transpose-image fliph-image))
+        (find-sea-monsters (-> image transpose-image flipv-image))
+        (find-sea-monsters (-> image transpose-image flipv-image fliph-image))
+        (find-sea-monsters (-> image flipv-image fliph-image))]
+       (mapcat identity)))
+
+(defn- solve-2
+  "Returns the number of '#' that are not part of a sea monster."
+  [s]
+  (let [image (->> s
+                   parse-all-tile-borders
+                   assemble-image)]
+    (->> image
+         find-sea-monsters-in-all-orientations
+         count
+         (* 15)                            ; There are 15 '#'s in a sea monster.
+         (- (count (filter #(= \# %) (apply str image)))))))
 
 (def trial-input "Tile 2311:
 ..##.#..#.
