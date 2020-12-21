@@ -1,4 +1,4 @@
-  (ns advent-of-code-2020.day20
+(ns advent-of-code-2020.day20
   (:require [clojure.string :as s]
             [clojure.set :refer [intersection]]))
 
@@ -31,17 +31,22 @@
   [s]
   (map parse-single-tile-borders (s/split s #"\n\n")))
 
+(defn- borders
+  "Returns a map of border encoding to direction of the given tile."
+  [tile]
+  (hash-map (:n tile) :n
+            (:s tile) :s
+            (:w tile) :w
+            (:e tile) :e
+            (:nr tile) :nr
+            (:sr tile) :sr
+            (:wr tile) :wr
+            (:er tile) :er))
+
 (defn- border-encodings
   "Returns the set of border encodings of the given tile."
   [tile]
-  (hash-set (:n tile)
-            (:s tile)
-            (:w tile)
-            (:e tile)
-            (:nr tile)
-            (:sr tile)
-            (:wr tile)
-            (:er tile)))
+  (set (keys (borders tile))))
 
 (defn- unique-border-encodings
   "Returns a set of border encodings which are unique among all tiles."
@@ -63,106 +68,101 @@
   [s]
   (let [tiles (parse-all-tile-borders s)
         unique-border-encodings (unique-border-encodings tiles)
-        corner-tiles (with-4 tiles unique-border-encodings)]
+        corner-tiles (-> tiles (with-4 unique-border-encodings))]
     (->> corner-tiles
          (map :id)
          (apply *))))
 
-(defn- borders
-  "Returns a map of border encoding to direction of the given tile."
-  [tile]
-  (hash-map (:n tile) :n
-            (:s tile) :s
-            (:w tile) :w
-            (:e tile) :e
-            (:nr tile) :nr
-            (:sr tile) :sr
-            (:wr tile) :wr
-            (:er tile) :er))
-
-(defn- transpose-image
+(defn- transpose
   "Transposes an image."
   [image]
   (apply mapv str image))
 
-(defn- transpose-tile
-  "Transposes a tile."
-  [tile]
-  (update (assoc tile
-                 :n (tile :w)
-                 :nr (tile :wr)
-                 :w (tile :n)
-                 :wr (tile :nr)
-                 :s (tile :e)
-                 :sr (tile :er)
-                 :e (tile :s)
-                 :er (tile :sr))
-          :image transpose-image))
-
-(defn- flipv-image
+(defn- flipv
   "Flips an image vertically."
   [image]
   (vec (reverse image)))
 
-(defn- flipv-tile
-  "Flips a tile vertically."
-  [tile]
-  (update (assoc tile
-                 :n (tile :s)
-                 :nr (tile :sr)
-                 :w (tile :wr)
-                 :wr (tile :w)
-                 :s (tile :n)
-                 :sr (tile :nr)
-                 :e (tile :er)
-                 :er (tile :e))
-          :image flipv-image))
-
-(defn- fliph-image
+(defn- fliph
   "Flips an image horizontally."
   [image]
   (mapv s/reverse image))
 
-(defn- fliph-tile
-  "Flips a tile horizontally."
-  [tile]
-  (update (assoc tile
-                 :n (tile :nr)
-                 :nr (tile :n)
-                 :w (tile :e)
-                 :wr (tile :er)
-                 :s (tile :sr)
-                 :sr (tile :s)
-                 :e (tile :w)
-                 :er (tile :wr))
-          :image fliph-image))
+(def base-transformations
+  "The basic transformations we can apply to images/tiles."
+  {:identity {:transform-image identity
+              :transform-directions {:n :n :nr :nr
+                                     :s :s :sr :sr
+                                     :w :w :wr :wr
+                                     :e :e :er :er}}
+   :transpose {:transform-image transpose
+               :transform-directions {:n :w :w :n
+                                      :nr :wr :wr :nr
+                                      :s :e :e :s
+                                      :sr :er :er :sr}}
+   :fliph {:transform-image fliph
+           :transform-directions {:n :nr :nr :n
+                                  :s :sr :sr :s
+                                  :w :e :e :w
+                                  :wr :er :er :wr}}
+   :flipv {:transform-image flipv
+           :transform-directions {:n :s :s :n
+                                  :nr :sr :sr :nr
+                                  :w :wr :wr :w
+                                  :e :er :er :e}}})
 
-(defn- rotate-to-west
-  "Rotates the tile so that the given direction matches west."
-  [tile direction]
-  (cond
-    (= direction :w) tile
-    (= direction :wr) (-> tile flipv-tile)
-    (= direction :e) (-> tile fliph-tile)
-    (= direction :er) (-> tile fliph-tile flipv-tile)
-    (= direction :s) (-> tile transpose-tile fliph-tile)
-    (= direction :sr) (-> tile transpose-tile flipv-tile fliph-tile)
-    (= direction :n) (-> tile transpose-tile)
-    (= direction :nr) (-> tile transpose-tile flipv-tile)
-    :else (throw (UnsupportedOperationException.
-                  (str "Direction " direction " to west")))))
+(defn- compose-transformations
+  "Returns a transformation which is the composite of the given base
+  transformations."
+  [& base-transformation-keys]
+  (let [base-ts (map base-transformations base-transformation-keys)]
+    {:transform-image (apply comp (reverse (map :transform-image base-ts)))
+     :transform-directions (reduce (fn [composite transformation]
+                                     (reduce #(assoc %1 %2 (transformation (composite %2)))
+                                             composite
+                                             (keys transformation)))
+                                   (get-in base-transformations [:identity :transform-directions])
+                                   (map :transform-directions base-ts))}))
+
+(def transformations
+  "All transformations we can apply to images/tiles."
+  (into base-transformations
+        {:tfh (compose-transformations :transpose :fliph)
+         :tfv (compose-transformations :transpose :flipv)
+         :fhfv (compose-transformations :fliph :flipv)
+         :tfhfv (compose-transformations :transpose :fliph :flipv)}))
+
+(def transformations-by-directions
+  "A map of all transformations, indexed by a [from to] pair of directions."
+  (->> transformations
+       vals
+       (mapcat (fn [t]
+                 (map #(vector [% ((t :transform-directions) %)] t)
+                      (keys (t :transform-directions)))))
+       (into {})))
+
+(defn- transform-tile
+  "Transforms a tile from one direction to another direction."
+  [tile from to]
+  (let [transform (transformations-by-directions [from to])
+        d-transform (transform :transform-directions)]
+    (update
+     (reduce #(assoc %1 (d-transform %2) (tile %2)) tile (keys d-transform))
+     :image
+     (transform :transform-image))))
 
 (defn- find-and-align-next-tile
-  "Finds the tile in tiles that fits to the right of the given tile and returns
-  it propertly oriented."
-  [tiles tile]
-  (let [border (:e tile)
+  "Finds the tile in tiles that fits to the match border of the given tile and
+  returns it propertly oriented (so that the fitting border is aligned to the
+  opposite border to the match border)."
+  [tiles tile match-border opposite-border]
+  (let [border (tile match-border)
         [direction next-tile] (->> tiles
                                    vals
                                    (map #(vector ((borders %) border) %))
                                    (filter first)
                                    first)]
-    (rotate-to-west next-tile direction)))
+    (transform-tile next-tile direction opposite-border)))
 
 (defn- assemble-row
   "Returns an assembled line of the given width starting with the given
@@ -172,33 +172,8 @@
           row [start-tile]]
      (if (= (.size row) width)
        row
-       (let [next-tile (find-and-align-next-tile tiles (last row))]
+       (let [next-tile (find-and-align-next-tile tiles (last row) :e :w)]
          (recur (dissoc tiles (:id next-tile)) (conj row next-tile)))))))
-
-(defn- rotate-to-north
-  "Rotates the tile so that the given direction matches north."
-  [tile direction]
-  (cond
-    (= direction :n) tile
-    (= direction :nr) (-> tile fliph-tile)
-    (= direction :s) (-> tile flipv-tile)
-    (= direction :sr) (-> tile flipv-tile fliph-tile)
-    (= direction :e) (-> tile transpose-tile flipv-tile)
-    (= direction :w) (-> tile transpose-tile)
-    :else (throw (UnsupportedOperationException.
-                  (str "Direction " direction " to north")))))
-
-(defn- find-and-align-first-tile
-  "Finds the tile in tiles that fits to the bottom of the given tile and returns
-  it propertly oriented."
-  [tiles tile]
-  (let [border (:s tile)
-        [direction next-tile] (->> tiles
-                                   vals
-                                   (map #(vector ((borders %) border) %))
-                                   (filter first)
-                                   first)]
-    (rotate-to-north next-tile direction)))
 
 (defn- which-of
   "Returns the direction which matches one of border-encodings."
@@ -213,24 +188,23 @@
   "Returns a vector of vectors of tiles in the correct alignment."
   [tiles]
   (let [unique-border-encodings (unique-border-encodings tiles)
-        a-corner (first (with-4 tiles unique-border-encodings))
+        a-corner (first (-> tiles (with-4 unique-border-encodings)))
         corner-west (which-of a-corner [:w :e] unique-border-encodings)
         corner-north (which-of a-corner [:n :s] unique-border-encodings)
-        oriented-corner (rotate-to-north (rotate-to-west a-corner corner-west)
-                                         corner-north)
+        oriented-corner (transform-tile (transform-tile a-corner corner-west :w)
+                                        corner-north
+                                        :n)
         width (long (Math/sqrt (count tiles)))]
     (loop [tiles (into {} (map #(vector (:id %) %) tiles))
            rows []
            first-tile-in-row oriented-corner]
-      (if (= (.size rows) width)
-        rows
-        (let [row (assemble-row tiles width first-tile-in-row)
-              tiles (reduce #(dissoc %1 (:id %2)) tiles row)]
-          (if (empty? tiles)
-            (conj rows row)
-            (recur tiles
-                   (conj rows row)
-                   (find-and-align-first-tile tiles first-tile-in-row))))))))
+      (let [row (assemble-row tiles width first-tile-in-row)
+            tiles (reduce #(dissoc %1 (:id %2)) tiles row)]
+        (if (empty? tiles)
+          (conj rows row)
+          (recur tiles
+                 (conj rows row)
+                 (find-and-align-next-tile tiles first-tile-in-row :s :n)))))))
 
 (defn- assemble-image
   "Returns the assembled image."
@@ -254,7 +228,7 @@
          (take-while identity))))
 
 (defn- find-sea-monsters
-  "Returns a sequence of possible locations of sea monsters."
+  "Returns a sequence of possible locations of sea monsters in the image."
   [image]
   (->> image
        (map-indexed (fn [i row]
@@ -274,17 +248,13 @@
                                    (+ j 20)))))))
 
 (defn- find-sea-monsters-in-all-orientations
-  "Returns a sequence of possible locations of sea monsters."
+  "Returns a sequence of possible locations of sea monsters, trying all
+  orientations of image."
   [image]
-  (->> [(find-sea-monsters image)
-        (find-sea-monsters (-> image transpose-image))
-        (find-sea-monsters (-> image fliph-image))
-        (find-sea-monsters (-> image flipv-image))
-        (find-sea-monsters (-> image transpose-image fliph-image))
-        (find-sea-monsters (-> image transpose-image flipv-image))
-        (find-sea-monsters (-> image transpose-image flipv-image fliph-image))
-        (find-sea-monsters (-> image flipv-image fliph-image))]
-       (mapcat identity)))
+  (->> (vals transformations)
+       (map :transform-image)
+       (map #(% image))
+       (mapcat find-sea-monsters)))
 
 (defn- solve-2
   "Returns the number of '#' that are not part of a sea monster."
