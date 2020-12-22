@@ -43,15 +43,19 @@
        (map :ingredients)
        (apply union)))
 
-(defn- safe-ingredients
-  "Determines the set of ingredients which can't possibly contain any of the
-  allergens in any food."
+(defn- dangerous-ingredients
+  "Determines the set of ingredients which possibly contain an allergen."
   [food-list]
   (->> food-list
        all-allergens
        (map (partial candidate-ingredients-for-allergen food-list))
-       (apply union)
-       (difference (all-ingredients food-list))))
+       (apply union)))
+
+(defn- safe-ingredients
+  "Determines the set of ingredients which can't possibly contain any of the
+  allergens in any food."
+  [food-list]
+  (difference (all-ingredients food-list) (dangerous-ingredients food-list)))
 
 (defn- number-of-foods-this-appears-in
   "Returns the number of foods the given ingredient appears in."
@@ -69,6 +73,50 @@
          safe-ingredients
          (map (partial number-of-foods-this-appears-in food-list))
          (apply +))))
+
+(defn- ingredients-by-allergen
+  "Returns a map of allergen to the set of ingredients which could possibly
+  contain it."
+  [food-list]
+  (->> food-list
+       all-allergens
+       (map #(vector % (candidate-ingredients-for-allergen food-list %)))
+       (into {})))
+
+(defn- fmap
+  "Applies f to all values in m."
+  [f m]
+  (into {} (for [[k v] m] [k (f v)])))
+
+(defn- deduce-ingredients
+  "Reduces the allergen-to-ingredients map until the mapping is 1:1."
+  [ingredients-by-allergen]
+  (let [set-sizes (group-by #(count (second %)) ingredients-by-allergen)]
+    (if (= (keys set-sizes) [1])
+      (fmap first ingredients-by-allergen)
+      (let [unique-ingredients (apply union (map second (set-sizes 1)))]
+        (recur (into (into {} (set-sizes 1))
+                     (->> (dissoc set-sizes 1)
+                          vals
+                          (apply concat)
+                          (fmap #(difference % unique-ingredients)))))))))
+
+(defn- canonical-dangerous-ingredient-list
+  "Returns the canonical dangerous ingredient list for the given food list."
+  [food-list]
+  (->> food-list
+       ingredients-by-allergen
+       deduce-ingredients
+       (sort-by first)
+       (map second)
+       (s/join ",")))
+
+(defn solve-2
+  "Returns the canonical dangerous ingredient list for the food list in s."
+  [s]
+  (->> s
+       parse-food-list
+       canonical-dangerous-ingredient-list))
 
 (def trial-input "mxmxvkd kfcds sqjhc nhms (contains dairy, fish)
 trh fvjkl sbzzf mxmxvkd (contains dairy)
