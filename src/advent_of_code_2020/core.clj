@@ -21,7 +21,7 @@
 (defn -main
   "Solve all puzzles."
   [& args]
-  (->> 24
+  (->> 25
        range
        (map inc)
        (map solve-day)
