@@ -8,36 +8,37 @@
        s/split-lines
        (map #(Long/parseLong %))))
 
-(def HANDSHAKE-START-VALUE 1)
+(def HANDSHAKE-START-VALUE (long 1))
 
-(def HANDSHAKE-SUBJECT-NUMBER 7)
+(def HANDSHAKE-SUBJECT-NUMBER (long 7))
 
 (def MODULUS 20201227)
 
 (defn- transform
   "Transforms the value with the subject number once."
-  [subject-number value]
+  ^long
+  [^long subject-number ^long value]
   (mod (* value subject-number) MODULUS))
-
-(defn- transform-subject-number
-  "Transforms the subject number with the given loop size."
-  [subject-number loop-size]
-  (loop [i loop-size
-         value 1]
-    (if (zero? i)
-      value
-      (recur (dec i) (transform subject-number value)))))
 
 (defn- brute-force-public-key
   "Performs a brute force attack to determine the loop size of the given public
   key. Returns the loop size."
   [public-key]
-  (->> HANDSHAKE-START-VALUE
-       (iterate (partial transform HANDSHAKE-SUBJECT-NUMBER))
-       (map-indexed vector)
-       (drop-while #(not= public-key (get % 1)))
-       first
-       first))
+  (loop [loop-size (long 0)
+         value HANDSHAKE-START-VALUE]
+    (if (= value public-key)
+      loop-size
+      (recur (inc loop-size) (transform HANDSHAKE-SUBJECT-NUMBER value)))))
+
+(defn- transform-subject-number
+  "Transforms the subject number with the given loop size."
+  [subject-number loop-size]
+  (let [subject-number (long subject-number)]
+    (loop [i (long loop-size)
+           value (long 1)]
+      (if (zero? i)
+        value
+        (recur (dec i) (transform subject-number value))))))
 
 (defn- encryption-key-from
   "Returns the encryption key, given a secret loop size and the other party's
