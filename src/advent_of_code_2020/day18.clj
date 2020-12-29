@@ -19,7 +19,7 @@
   [rule-name s]
   (->> s
        s/split-lines
-       (map #(str "(" rule-name " " % ")"))
+       (map #(str "(advent-of-code-2020.day18/" rule-name " " % ")"))
        (map read-string)
        (map eval)
        (reduce +)))
