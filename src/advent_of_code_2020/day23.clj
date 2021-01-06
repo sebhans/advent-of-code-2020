@@ -6,11 +6,6 @@
   [s]
   (vec (map #(- (long %) (long \0)) s)))
 
-(defn- decode-cups [cups]
-  (reduce (fn [acc _] (conj acc (inc (aget cups (dec (last acc))))))
-          [1]
-          (range (dec (alength cups)))))
-
 (defmacro take-if-not-in
   "Returns the value of expr if it is not one of the following expressions or the
   alternative expression otherwise."
