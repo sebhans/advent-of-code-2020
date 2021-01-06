@@ -30,21 +30,16 @@
                   0)
                 (assoc spoken-at most-recently-spoken-number last-turn))))
 
-(defn- number-stream
-  "Generates a lazy sequence of number vectors, representing the game state."
-  [start-numbers]
-  (iterate speak-next-number (game-state-from start-numbers)))
-
 (defn- nth-number
   "Returns the nth number spoken, starting with the start-numbers."
   [n start-numbers]
   (if (<= n (.size start-numbers))
     (get start-numbers (dec n))
-    (->> start-numbers
-         number-stream
-         (take (inc (- n (.size start-numbers))))
-         last
-         :last-number)))
+    (loop [n (long (- n (.size start-numbers)))
+           game-state (game-state-from start-numbers)]
+      (if (zero? n)
+        (:last-number game-state)
+        (recur (dec n) (speak-next-number game-state))))))
 
 (defn solve-1
   "Returns the 2020th number spoken in the Elves' memory game given the starting
