@@ -9,42 +9,27 @@
        (re-seq #"\d+")
        (map #(Long/parseLong %))))
 
-(defrecord GameState [^long last-turn ^long last-number ^LongLongMap spoken-at])
-
-(defn- game-state-from
-  "Creates a game state from the given starting numbers."
-  [starting-numbers]
-  (let [with-turns (map-indexed #(vector %2 (inc %1)) starting-numbers)
-        numbers (butlast starting-numbers)
-        turns (map inc (range (dec (.size starting-numbers))))]
-    (GameState. (.size starting-numbers)
-                (last starting-numbers)
-                (HashLongLongMaps/newUpdatableMap numbers turns))))
-
-(defn- speak-next-number
-  "Speaks the next number given the current game state."
-  [^GameState state]
-  (let [last-turn (:last-turn state)
-        most-recently-spoken-number (:last-number state)
-        spoken-at (:spoken-at state)
-        turn-most-recently-spoken-number-was-spoken-before (.getOrDefault ^LongLongMap spoken-at ^long most-recently-spoken-number (long -1))]
-    (.put ^LongLongMap spoken-at ^long most-recently-spoken-number ^long last-turn)
-    (GameState. (inc last-turn)
-                (if (>= turn-most-recently-spoken-number-was-spoken-before (long 0))
-                  (- last-turn turn-most-recently-spoken-number-was-spoken-before)
-                  0)
-                spoken-at)))
-
 (defn- nth-number
   "Returns the nth number spoken, starting with the start-numbers."
   [n start-numbers]
-  (if (<= n (.size start-numbers))
-    (get start-numbers (dec n))
-    (loop [n (long (- n (.size start-numbers)))
-           game-state (game-state-from start-numbers)]
-      (if (zero? n)
-        (:last-number game-state)
-        (recur (dec n) (speak-next-number game-state))))))
+  (let [l (.size start-numbers)]
+    (if (<= n l)
+      (get start-numbers (dec n))
+      (let [spoken-at (HashLongLongMaps/newUpdatableMap
+                       (butlast start-numbers)
+                       (map inc (range (dec l))))]
+        (loop [n (long (- n l))
+               last-turn (long (.size start-numbers))
+               last-number (long (last start-numbers))]
+          (if (zero? n)
+            last-number
+            (let [turn-last-spoken-number-was-spoken-before (.getOrDefault ^LongLongMap spoken-at last-number (long -1))]
+              (.put ^LongLongMap spoken-at last-number last-turn)
+              (recur (dec n)
+                     (inc last-turn)
+                     (if (>= turn-last-spoken-number-was-spoken-before (long 0))
+                       (- last-turn turn-last-spoken-number-was-spoken-before)
+                       0)))))))))
 
 (defn solve-1
   "Returns the 2020th number spoken in the Elves' memory game given the starting
