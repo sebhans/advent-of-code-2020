@@ -1,4 +1,6 @@
-(ns advent-of-code-2020.day15)
+(ns advent-of-code-2020.day15
+  (:import [com.koloboke.collect.map.hash HashLongLongMaps]
+           [com.koloboke.collect.map LongLongMap]))
 
 (defn- parse-input
   "Parses a comma-separated list of numbers into a vector of numbers."
@@ -7,28 +9,31 @@
        (re-seq #"\d+")
        (map #(Long/parseLong %))))
 
-(defrecord GameState [^Long last-turn ^Long last-number ^clojure.lang.PersistentHashMap spoken-at])
+(defrecord GameState [^long last-turn ^long last-number ^LongLongMap spoken-at])
 
 (defn- game-state-from
   "Creates a game state from the given starting numbers."
   [starting-numbers]
-  (let [with-turns (map-indexed #(vector %2 (inc %1)) starting-numbers)]
-    (GameState. (second (last with-turns))
-                (first (last with-turns))
-                (apply hash-map (flatten (butlast with-turns))))))
+  (let [with-turns (map-indexed #(vector %2 (inc %1)) starting-numbers)
+        numbers (butlast starting-numbers)
+        turns (map inc (range (dec (.size starting-numbers))))]
+    (GameState. (.size starting-numbers)
+                (last starting-numbers)
+                (HashLongLongMaps/newUpdatableMap numbers turns))))
 
 (defn- speak-next-number
   "Speaks the next number given the current game state."
   [^GameState state]
-  (let [^Long last-turn (:last-turn state)
-        ^Long most-recently-spoken-number (:last-number state)
-        ^clojure.lang.PersistentHashMap spoken-at (:spoken-at state)
-        ^Long turn-most-recently-spoken-number-was-spoken-before (spoken-at most-recently-spoken-number)]
+  (let [last-turn (:last-turn state)
+        most-recently-spoken-number (:last-number state)
+        spoken-at (:spoken-at state)
+        turn-most-recently-spoken-number-was-spoken-before (.getOrDefault ^LongLongMap spoken-at ^long most-recently-spoken-number (long -1))]
+    (.put ^LongLongMap spoken-at ^long most-recently-spoken-number ^long last-turn)
     (GameState. (inc last-turn)
-                (if turn-most-recently-spoken-number-was-spoken-before
+                (if (>= turn-most-recently-spoken-number-was-spoken-before (long 0))
                   (- last-turn turn-most-recently-spoken-number-was-spoken-before)
                   0)
-                (assoc spoken-at most-recently-spoken-number last-turn))))
+                spoken-at)))
 
 (defn- nth-number
   "Returns the nth number spoken, starting with the start-numbers."
