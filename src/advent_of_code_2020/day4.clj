@@ -4,7 +4,7 @@
 (defn- parse-field
   "Parses a single field into a key-value pair (a two-element vector)."
   [s]
-  (vec (drop 1 (re-matches #"([^:]+):(\S+)" s))))
+  (subvec (re-matches #"([^:]+):(\S+)" s) 1))
 
 (defn- parse-passport
   "Parses a single passport into a map of its fields."
@@ -21,13 +21,16 @@
        (re-seq #"(?:\S+(?:\s|$))+(?:\s|$)")
        (map parse-passport)))
 
+(def required-keys
+  "Set of required keys in a passport."
+  #{"byr", "iyr" "eyr", "hgt", "hcl", "ecl", "pid"})
+
 (defn- has-required-fields?
   "Returns truthy if the given passport contains all required fields.
    According to the 'improved' policy, these are:
    byr, iyr, eyr, hgt, hcl, ecl, pid."
   [passport]
-  (let [required-keys #{"byr", "iyr" "eyr", "hgt", "hcl", "ecl", "pid"}]
-    (empty? (difference required-keys (set (keys passport))))))
+  (every? (partial contains? passport) required-keys))
 
 (defn solve-1
   "Counts the passports valid according to the 'improved' policy."
@@ -40,10 +43,8 @@
 (defn- in-range
   "Returns truthy if s represents an integer between min and max (inclusive)."
   [s min max]
-  (try
-    (let [n (Integer. s)]
-      (and (>= n min) (<= n max)))
-    (catch NumberFormatException e false)))
+  (try (<= min (Integer. s) max)
+       (catch NumberFormatException e false)))
 
 (def field-validators
   "Revised field validation policy"
@@ -70,9 +71,7 @@
   "Returns truthy if all fields of the given passport are valid according to the
    revised puzzle policy."
   [passport]
-  (->> passport
-       seq
-       (every? field-valid?)))
+  (every? field-valid? passport))
 
 (defn solve-2
   "Counts the passports valid according to the revised 'improved' policy."
